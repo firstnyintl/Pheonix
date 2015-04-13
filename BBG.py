@@ -1,6 +1,7 @@
 import blpapi
 from optparse import OptionParser
 import pandas as pd
+import numpy as np
 import pdb
 
 
@@ -205,6 +206,12 @@ def getFieldsOverride(securities, field, override_fields, override_values, secur
 
     overrides = request.getElement("overrides")
 
+    if type(override_fields) == str:
+        override_fields = [override_fields]
+
+    if type(override_values) == str:
+        override_values = [override_values]
+
     for fld, val in zip(override_fields, override_values):
         override = overrides.appendElement()
         override.setElement("fieldId", fld)
@@ -239,9 +246,9 @@ def getFieldsOverride(securities, field, override_fields, override_values, secur
     return output
 
 
-def getSingleFieldOverride(security, field, override_field, override_value):
+def getBulkAnalystRecs(stock):
     """
-    Returns DataFrame with securities and fields
+    Returns DataFrame of historical analyst ratings for Equity security
     """
     session = createSession()
     if not session.openService("//blp/refdata"):
@@ -249,15 +256,10 @@ def getSingleFieldOverride(security, field, override_field, override_value):
     refDataService = session.getService("//blp/refdata")
     request = refDataService.createRequest("ReferenceDataRequest")
 
-    request.append("securities", security)
-    request.append("fields", field)
-    overrides = request.getElement("overrides")
-    override1 = overrides.appendElement()
-    override1.setElement("fieldId", override_field)
-    override1.setElement("value", override_value)
+    request.append('securities', stock + ' Equity')
+    request.append('fields', 'BEST_ANALYST_RECS_BULK')
 
     session.sendRequest(request)
-
     loop = True
     try:
         while(loop):
@@ -266,10 +268,15 @@ def getSingleFieldOverride(security, field, override_field, override_value):
                 if event.eventType() == blpapi.Event.RESPONSE or event.eventType() == blpapi.Event.PARTIAL_RESPONSE:
                     securityDataArray = msg.getElement(blpapi.Name("securityData"))
                     for securityData in securityDataArray.values():
-                        security = securityData.getElementAsString(blpapi.Name("security"))
                         fieldData = securityData.getElement(blpapi.Name("fieldData"))
                         for field in fieldData.elements():
-                            return field.getValue()
+                            ratings = field.values()
+                            output = pd.DataFrame(index=np.arange(field.numValues()), columns=['Firm Name', 'Analyst', 'Recommendation', 'Rating', 'Action Code', 'Target Price', 'Period', 'Date', 'BARR', '1 Year Return'])
+                            for i, rating in enumerate(ratings):
+                                for element in rating.elements():
+                                    fld = element.name().__str__()
+                                    output.ix[i][fld] = element.getValue()
+                        return output
     finally:
         endSession(session)
 

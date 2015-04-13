@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta
 import numpy as np
 import BBG
+import pdb
 
 """
 ptlist needs to be defined
 """
 
 class broker_changes:
-    def __init__(self, ticker, type, firm, analyst, PT, old_PT, date, ptlist):
+    def __init__(self, ticker, type, firm, analyst, PT, old_PT, date):
         self.ticker = ticker
         self.type = type
         self.firm = firm
@@ -15,7 +16,7 @@ class broker_changes:
         self.PT = float(PT)
         self.old_PT = float(old_PT)
         self.date = date
-        self.ptlist = np.array(ptlist)
+        self.BBGData = BBG.getBulkAnalystRecs(self.ticker)
 
     def stHighLow(self):
         """
@@ -32,8 +33,9 @@ class broker_changes:
         """
         what quartile does the new price target fall under
         """
-        high = np.max(self.ptlist)
-        rng = np.ptp(self.ptlist)
+        ptlist = self.BBGData[self.BBGData['Target Price'] > 0]['Target Price'].values
+        high = np.max(ptlist)
+        rng = np.ptp(ptlist)
         q = rng / 4.
         if self.PT > high - q:
             return 4
@@ -64,14 +66,11 @@ class broker_changes:
     #     else:
     #         return False
 
-    # def newAnalyst(self):
-    #     """
-    #     says if there is a new analyst
-    #     """
-    #     if bbg(analyst) == analyst:
-    #         return True
-    #     else:
-    #         return False
+    def newAnalyst(self):
+        """
+        Returns True if there is a new analyst
+        """
+        return not self.BBGData[self.BBGData['Firm Name'] == self.firm].Analyst.values[0] == self.analyst.upper()
 
     def shortInt(self):
         """
@@ -82,10 +81,9 @@ class broker_changes:
             return True
         else:
             return False
-        
-lst = [7, 9, 3, 4, 9, 3, 3, 6]
 
 
-debug = broker_changes('CMG Equity', 'Upgrade', 'Morgan Stanley', 'Bob', 2, 5,'2015', lst)
 
-print debug.shortInt()
+debug = broker_changes('MSFT', 'Upgrade', 'Goldman Sachs', 'Heather Belloni', 50, 5,'2015')
+
+print debug.newAnalyst()
