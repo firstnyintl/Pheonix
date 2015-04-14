@@ -128,35 +128,57 @@ def getMessages():
     index = tokenized_block.index('ET')
     msg = tokenized_block[index-1:]
 
-    # Check whether is single upgrade / downgrade / initiation / resumption
+    # These words indicate multiple events per msg
     multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes']
+    # Two-word ratings contain these words first
+    two_word_rating_list = ['sector', 'market']
+
+    # Check whether is single upgrade / downgrade / initiation / resumption
     if not any([e in msg for e in multiple_msg_tokens]):
         SINGLE_MESSAGE_TICKER_INDEX = 5
         ticker = msg[SINGLE_MESSAGE_TICKER_INDEX]
         if 'upgraded' in msg:
             msgtype = 'upgrade'
             ix = msg.index('upgraded')
-            rating = msg[ix+2]
+            if msg[ix+2] in two_word_rating_list:
+                rating = msg[ix+2] + ' ' + msg[ix+3]
+            else:
+                rating = msg[ix+2]
         elif 'downgraded' in msg:
             msgtype = 'downgrade'
             ix = msg.index('downgraded')
-            rating = msg[ix+2]
+            if msg[ix+2] in two_word_rating_list:
+                rating = msg[ix+2] + ' ' + msg[ix+3]
+            else:
+                rating = msg[ix+2]
         elif 'initiated' in msg:
             msgtype = 'initiates'
             ix = msg.index('initiated')
-            rating = msg[ix+1]
+            if msg[ix+1] in two_word_rating_list:
+                rating = msg[ix+1] + ' ' + msg[ix+2]
+            else:
+                rating = msg[ix+1]
         elif 'resumed' in msg:
             msgtype = 'resumption'
             ix = msg.index('resumed')
-            rating = msg[ix+1]
+            if msg[ix+1] in two_word_rating_list:
+                rating = msg[ix+1] + ' ' + msg[ix+2]
+            else:
+                rating = msg[ix+1]
         elif 'reinstated' in msg:
             msgtype = 'resumption'
             ix = msg.index('resumed')
-            rating = msg[ix+1]
+            if msg[ix+1] in two_word_rating_list:
+                rating = msg[ix+1] + ' ' + msg[ix+2]
+            else:
+                rating = msg[ix+1]
         elif 'assumed' in msg:
             msgtype = 'resumption'
             ix = msg.index('assumed')
-            rating = msg[ix+1]
+            if msg[ix+1] in two_word_rating_list:
+                rating = msg[ix+1] + ' ' + msg[ix+2]
+            else:
+                rating = msg[ix+1]
         else:
             msgtype = 'N/A'
     # Check whether upgrade, downgrade, or initiation, or resumption
