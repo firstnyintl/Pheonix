@@ -1,17 +1,21 @@
-from datetime import datetime, timedelta
 import numpy as np
+import imaplib
+import email
+import dateutil.parser
+import nltk
 import BBG
 import pdb
 
-"""
-ptlist needs to be defined
-"""
 
-class broker_changes:
+class SAMessage:
+    """
+    Contains information about a single message-- e.g. an upgrade, downgrade, initiation, etc. -- as well as several functions that can be computed using information from Bloomberg
+    """
     def __init__(self, ticker, type, firm, analyst, PT, old_PT, date):
         self.ticker = ticker
         self.type = type
         self.firm = firm
+        self.rating = rating
         self.analyst = analyst
         self.PT = float(PT)
         self.old_PT = float(old_PT)
@@ -20,7 +24,7 @@ class broker_changes:
 
     def stHighLow(self):
         """
-        returns string to indicate is street high or low
+        Returns string to indicate whether Price Target is street high or low
         """
         if self.PT > np.max(self.ptlist):
             return 'Street High'
@@ -31,7 +35,7 @@ class broker_changes:
 
     def quartile(self):
         """
-        what quartile does the new price target fall under
+        Returns which quartile the new price target falls under
         """
         ptlist = self.BBGData[self.BBGData['Target Price'] > 0]['Target Price'].values
         high = np.max(ptlist)
@@ -48,7 +52,7 @@ class broker_changes:
 
     def pctChange(self):
         """
-        the percent change between the new and old price target
+        Returns the % change between the new and old price targets
         """
         change = self.PT - self.old_PT
         pctDif = change / self.old_PT
@@ -74,16 +78,87 @@ class broker_changes:
 
     def shortInt(self):
         """
-        Boolean to define if short interest is significant
+        Returns True if short interest is above a significant threshold
         """
         shrtInt = BBG.getSingleField(self.ticker, 'SHORT_INT_RATIO')
-        if shrtInt > 5:
-            return True
+        return shrtInt > 5
+
+
+def getMessages():
+
+    def get_text_block(email_message_instance):
+        maintype = email_message_instance.get_content_maintype()
+        if maintype == 'multipart':
+            for part in email_message_instance.get_payload():
+                if part.get_content_maintype() == 'text':
+                    return part.get_payload()
+        elif maintype == 'text':
+            return email_message_instance.get_payload()
+
+    # Login to GMAIL
+    mail = imaplib.IMAP4_SSL('imap.gmail.com')
+    mail.login("ratingsstock", "firstny2015")
+    mail.list()
+    mail.select("inbox")
+
+    # Get all messages and find the last message
+    result, data = mail.uid('search', None, "ALL")
+    latest_email_uid = data[0].split()[-1]
+    result, data = mail.uid('fetch', latest_email_uid, "(RFC822)")
+    raw_email = data[0][1]
+
+    # Generate email message object from raw message
+    email_message = email.message_from_string(raw_email)
+
+    # Convert to text block
+    block = get_text_block(email_message)
+
+    # Get rid of header and footer
+    block = block.split('StreetAccount')[1:3]
+    block = "".join(block)
+
+    # Get rid of =, /r, /n
+    block = block.translate(None, '=\r\\')
+    block = block.translate(None, '\n')
+
+    # Tokenize using NLTK
+    tokenized_block = nltk.word_tokenize(block)
+
+    # Isolate message from email
+    index = tokenized_block.index('ET')
+    msg = tokenized_block[index-1:]
+
+    # Check whether is single upgrade / downgrade / initiation / resumption
+    multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes']
+    if not any([e in msg for e in multiple_msg_tokens]):
+        SINGLE_MESSAGE_TICKER_INDEX = 5
+        ticker = msg[SINGLE_MESSAGE_TICKER_INDEX]
+        if 'upgraded' in msg:
+            msgtype = 'upgrade'
+            ix = msg.index('upgraded')
+            rating = msg[ix+2]
+        elif 'downgraded' in msg:
+            msgtype = 'downgrade'
+            ix = msg.index('downgraded')
+            rating = msg[ix+2]
+        elif 'initiated' in msg:
+            msgtype = 'initiates'
+            ix = msg.index('initiated')
+            rating = msg[ix+1]
+        elif 'resumed' in msg:
+            msgtype = 'resumption'
+            ix = msg.index('resumed')
+            rating = msg[ix+1]
+        elif 'reinstated' in msg:
+            msgtype = 'resumption'
+            ix = msg.index('resumed')
+            rating = msg[ix+1]
+        elif 'assumed' in msg:
+            msgtype = 'resumption'
+            ix = msg.index('assumed')
+            rating = msg[ix+1]
         else:
-            return False
+            msgtype = 'N/A'
+    # Check whether upgrade, downgrade, or initiation, or resumption
 
-
-
-debug = broker_changes('MSFT', 'Upgrade', 'Goldman Sachs', 'Heather Belloni', 50, 5,'2015')
-
-print debug.newAnalyst()
+    pdb.set_trace()
