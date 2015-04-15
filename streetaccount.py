@@ -88,6 +88,9 @@ class SAMessage:
 def getMessages():
 
     def get_text_block(email_message_instance):
+        """
+        Process raw email string, returns decoded message string
+        """
         maintype = email_message_instance.get_content_maintype()
         if maintype == 'multipart':
             for part in email_message_instance.get_payload():
@@ -95,6 +98,160 @@ def getMessages():
                     return part.get_payload(decode=True)
         elif maintype == 'text':
             return email_message_instance.get_payload(decode=True)
+
+    def getCurrency(PT, msg, PTix):
+        """
+        Process currecy identifiers for PT subsection of msg, returns currency string
+        """
+        # If PT field doesnt contain currency identifier
+        if PT == msg[PTix]:
+            curr = msg[PTix-1]
+            # If identifier is $
+            if curr == '$':
+                # If 'C' precedes $, currency is CAD
+                if msg[PTix-2] == 'C':
+                    return 'CAD'
+                # If 'C' precedes $, currency is CAD
+                if msg[PTix-2] == 'A':
+                    return 'AUD'
+                # If no 'C' precedes $, currency is USD
+                else:
+                    return 'USD'
+            else: return curr
+        else:
+            curr = ''.join(i for i in msg[PTix] if not i.isdigit())
+            # Check if 'p' in identifier, return GBP
+            if 'p' in curr:
+                return 'GBP'
+            # Check if Euro sign
+            if curr == '\x80':
+                return 'EUR'
+            return curr
+
+    def getPT(msg):
+        if "Target" in msg: ix = msg.index('Target')
+        elif 'target' in msg: ix = msg.index('target')
+        else: return '', ''
+        for i, x in enumerate(msg[ix:]):
+            # Check if contains float
+            if len(re.findall('\d+.\d+', x)) > 0:
+                PT = re.findall('\d+.\d+', x)[0]
+                curr = getCurrency(PT, msg, ix+i)
+                PT = float(PT.replace(',', ''))
+                break
+            # Check if contains int
+            elif len(re.findall('\d+', x)) > 0:
+                PT = re.findall('\d+', x)[0]
+                curr = getCurrency(PT, msg, ix+i)
+                PT = float(PT.replace(',', ''))
+                break
+            # If doesn't contain float or int continue
+            else:
+                continue
+        return PT, curr
+
+    def getSingle(msg):
+        """
+        Check if single message and process message
+
+        Returns message parameters, as well as True/False whether single or not
+        """
+
+        # Check whether is single upgrade / downgrade / initiation / resumption
+        if not any([e in msg for e in multiple_msg_tokens]):
+
+            # Get ticker
+            SINGLE_MESSAGE_TICKER_INDEX = 5
+            ticker = msg[SINGLE_MESSAGE_TICKER_INDEX]
+
+            # Get Analyst (assumes format "Analyst is xx xx")
+            if "Analyst" in msg:
+                ix = msg.index('Analyst')
+                analyst = msg[ix+2] + ' ' + msg[ix+3]
+            else:
+                analyst = ''
+
+            # Get message type and rating
+
+            # Check if target price increase or decrease
+            # Assumed format 'target in/decreased to x' max 5 spaces after ticker
+            if 'target' in msg[SINGLE_MESSAGE_TICKER_INDEX:SINGLE_MESSAGE_TICKER_INDEX+5]:
+                ix = msg.index('target')
+                if msg[ix+1] == 'increased':
+                    msgtype = 'PT increased'
+                    PT, curr = getPT(msg)
+                    rating = ''
+                elif msg[ix+1] == 'decreased':
+                    msgtype = 'PT decreased'
+                    PT, curr = getPT(msg)
+                    rating = ''
+                else:
+                    raise Exception('Message type not accounted for')
+                return True, [ticker, msgtype, rating, PT, curr, analyst]
+            # Assumed format "upgraded to x"
+            else:
+                if 'upgraded' in msg:
+                    msgtype = 'upgrade'
+                    ix = msg.index('upgraded')
+                    if msg[ix+2] in two_word_rating_list:
+                        rating = msg[ix+2] + ' ' + msg[ix+3]
+                    else:
+                        rating = msg[ix+2]
+                # Assumed format "downgraded to x"
+                elif 'downgraded' in msg:
+                    msgtype = 'downgrade'
+                    ix = msg.index('downgraded')
+                    if msg[ix+2] in two_word_rating_list:
+                        rating = msg[ix+2] + ' ' + msg[ix+3]
+                    else:
+                        rating = msg[ix+2]
+                # Assumed format "initiated x"
+                elif 'initiated' in msg:
+                    msgtype = 'initiation'
+                    ix = msg.index('initiated')
+                    if msg[ix+1] in two_word_rating_list:
+                        rating = msg[ix+1] + ' ' + msg[ix+2]
+                    else:
+                        rating = msg[ix+1]
+                # Assumed format "resumed x"
+                elif 'resumed' in msg:
+                    msgtype = 'resumption'
+                    ix = msg.index('resumed')
+                    if msg[ix+1] in two_word_rating_list:
+                        rating = msg[ix+1] + ' ' + msg[ix+2]
+                    else:
+                        rating = msg[ix+1]
+                # Assumed format "reinstated x"
+                elif 'reinstated' in msg:
+                    msgtype = 'resumption'
+                    ix = msg.index('reinstated')
+                    if msg[ix+1] in two_word_rating_list:
+                        rating = msg[ix+1] + ' ' + msg[ix+2]
+                    else:
+                        rating = msg[ix+1]
+                # Assumed format "reinstated x"
+                elif 'reinitiated' in msg:
+                    msgtype = 'resumption'
+                    ix = msg.index('reinitiated')
+                    if msg[ix+1] in two_word_rating_list:
+                        rating = msg[ix+1] + ' ' + msg[ix+2]
+                    else:
+                        rating = msg[ix+1]
+                # Assumed format "assumed x"
+                elif 'assumed' in msg:
+                    msgtype = 'resumption'
+                    ix = msg.index('assumed')
+                    if msg[ix+1] in two_word_rating_list:
+                        rating = msg[ix+1] + ' ' + msg[ix+2]
+                    else:
+                        rating = msg[ix+1]
+                else:
+                    raise Exception('Message type not accounted for')
+
+                # Get Price Target and currency
+                PT, curr = getPT(msg)
+                return True, [ticker, msgtype, rating, PT, curr, analyst]
+        return False
 
     # Login to GMAIL
     mail = imaplib.IMAP4_SSL('imap.gmail.com')
@@ -152,109 +309,16 @@ def getMessages():
         try:
             firm = firm_list[firm_list['eval']].index.values[0]
         except:
-            firm = 'N/A'
+            firm = ''
 
-        # Check whether is single upgrade / downgrade / initiation / resumption
-        if not any([e in msg for e in multiple_msg_tokens]):
-
-            # Get ticker
-            SINGLE_MESSAGE_TICKER_INDEX = 5
-            ticker = msg[SINGLE_MESSAGE_TICKER_INDEX]
-
-            # Get message type and rating
-            # Assumed format "upgraded to x"
-            if 'upgraded' in msg:
-                msgtype = 'upgrade'
-                ix = msg.index('upgraded')
-                if msg[ix+2] in two_word_rating_list:
-                    rating = msg[ix+2] + ' ' + msg[ix+3]
-                else:
-                    rating = msg[ix+2]
-            # Assumed format "downgraded to x"
-            elif 'downgraded' in msg:
-                msgtype = 'downgrade'
-                ix = msg.index('downgraded')
-                if msg[ix+2] in two_word_rating_list:
-                    rating = msg[ix+2] + ' ' + msg[ix+3]
-                else:
-                    rating = msg[ix+2]
-            # Assumed format "initiated x"
-            elif 'initiated' in msg:
-                msgtype = 'initiates'
-                ix = msg.index('initiated')
-                if msg[ix+1] in two_word_rating_list:
-                    rating = msg[ix+1] + ' ' + msg[ix+2]
-                else:
-                    rating = msg[ix+1]
-            # Assumed format "resumed x"
-            elif 'resumed' in msg:
-                msgtype = 'resumption'
-                ix = msg.index('resumed')
-                if msg[ix+1] in two_word_rating_list:
-                    rating = msg[ix+1] + ' ' + msg[ix+2]
-                else:
-                    rating = msg[ix+1]
-            # Assumed format "reinstated x"
-            elif 'reinstated' in msg:
-                msgtype = 'reinstation'
-                ix = msg.index('reinstated')
-                if msg[ix+1] in two_word_rating_list:
-                    rating = msg[ix+1] + ' ' + msg[ix+2]
-                else:
-                    rating = msg[ix+1]
-            # Assumed format "assumed x"
-            elif 'assumed' in msg:
-                msgtype = 'assumption'
-                ix = msg.index('assumed')
-                if msg[ix+1] in two_word_rating_list:
-                    rating = msg[ix+1] + ' ' + msg[ix+2]
-                else:
-                    rating = msg[ix+1]
-            else:
-                msgtype = 'N/A'
-
-            # Get Analyst (assumes format "Analyst is xx xx")
-            if "Analyst" in msg:
-                ix = msg.index('Analyst')
-                analyst = msg[ix+2] + ' ' + msg[ix+3]
-
-            # Get new PT and currency (assumed format 'Target' followed by new PT as first numerical value)
-            if "Target" in msg:
-                ix = msg.index('Target')
-                for i, x in enumerate(msg[ix:]):
-                    # Check if contains float
-                    if len(re.findall('\d+.\d+', x)) > 0:
-                        PT = re.findall('\d+.\d+', x)[0]
-                        # Check if item contains currency
-                        if PT == x:
-                            curr = msg[ix:][i-1]
-                            # Check for Canada
-                            if msg[ix:][i-2] == 'C':
-                                curr = 'C' + curr
-                        else:
-                            curr = ''.join(i for i in x if not i.isdigit())
-                            # Check for Canada
-                            if msg[ix:][i-2] == 'C':
-                                curr = 'C' + curr
-                        break
-                    # Check if contains int
-                    elif len(re.findall('\d+', x)) > 0:
-                        PT = re.findall('\d+', x)[0]
-                        # Check if item contains currency
-                        if PT == x:
-                            curr = msg[ix:][i-1]
-                            # Check for Canada
-                            if msg[ix:][i-2] == 'C':
-                                curr = 'C' + curr
-                        else:
-                            curr = ''.join(i for i in x if not i.isdigit())
-                            # Check for Canada
-                            if msg[ix:][i-2] == 'C':
-                                curr = 'C' + curr
-                        break
-                    # If doesn't contain float or int continue
-                    else:
-                        continue
+        isSingle, vals = getSingle(msg)
+        if isSingle:
+            ticker = vals[0]
+            msgtype = vals[1]
+            rating = vals[2]
+            PT = vals[3]
+            curr = vals[4]
+            analyst = vals[5]
 
             print '------------------------------'
             print '        NEW MESSAGE           '
@@ -264,7 +328,8 @@ def getMessages():
             print 'Ticker: ' + ticker
             print 'Type: ' + msgtype
             print 'Rating: ' + rating
-            print 'PT: ' + curr + str(PT)
+            print 'PT: ' + str(PT)
+            print 'FX: ' + curr
             print 'Analyst: ' + analyst
             print ''
 
