@@ -17,7 +17,6 @@ class SAMessage:
         self.ticker = ticker
         self.type = type
         self.firm = firm
-        self.rating = rating
         self.analyst = analyst
         self.PT = float(PT)
         self.old_PT = float(old_PT)
@@ -103,139 +102,177 @@ def getMessages():
     mail.list()
     mail.select("inbox")
 
-    # Get all messages and find the last message
-    result, data = mail.uid('search', None, "ALL")
-    latest_email_uid = data[0].split()[-1]
-    result, data = mail.uid('fetch', latest_email_uid, "(RFC822)")
-    raw_email = data[0][1]
+    # Get all unread messages
+    x, y = mail.uid('search', None, "(UNSEEN)")
 
-    # Generate email message object from raw message
-    email_message = email.message_from_string(raw_email)
+    # Check if unread emails
+    unreadMails = len(y[0].split()) > 0
 
-    # Convert to text block
-    block = get_text_block(email_message)
+    # While there are unread emails
+    while(unreadMails):
 
-    # Get rid of header and footer
-    block = block.split('StreetAccount')[1:3]
-    block = "".join(block)
+        # Get number of unread emails
+        latest_email_uid = y[0].split()[-1]
+        result, data = mail.uid('fetch', latest_email_uid, "(RFC822)")
+        raw_email = data[0][1]
 
-    # Get rid of =, /r, /n
-    block = block.translate(None, '=\r\\')
-    block = block.translate(None, '\n')
+        # Generate email message object from raw message
+        email_message = email.message_from_string(raw_email)
 
-    # Tokenize using NLTK
-    tokenized_block = nltk.word_tokenize(block)
+        # Convert to text block
+        block = get_text_block(email_message)
 
-    # Isolate message from email
-    index = tokenized_block.index('ET')
-    msg = tokenized_block[index-1:]
+        # Get rid of header and footer
+        block = block.split('StreetAccount')[1:3]
+        block = "".join(block)
 
-    # Get Date
-    dt = msg[2] + ' ' + msg[0]
-    date = datetime.datetime.strptime(dt, '%m/%d/%y %H:%M')
+        # Get rid of =, /r, /n
+        block = block.translate(None, '=\r\\')
+        block = block.translate(None, '\n')
 
-    # These words indicate multiple events per msg
-    multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes']
-    # Two-word ratings contain these words first
-    two_word_rating_list = ['sector', 'market']
+        # Tokenize using NLTK
+        tokenized_block = nltk.word_tokenize(block)
 
-    # Get firm name
-    firm_list = pd.DataFrame.from_csv('research_firm_list.csv')
-    firm_list['eval'] = firm_list['Unique Identifier'].isin(msg)
-    try:
-        firm = firm_list[firm_list['eval']].index.values[0]
-    except:
-        firm = 'N/A'
+        # Isolate message from email
+        index = tokenized_block.index('ET')
+        msg = tokenized_block[index-1:]
 
-    # Check whether is single upgrade / downgrade / initiation / resumption
-    if not any([e in msg for e in multiple_msg_tokens]):
+        # Get Date
+        dt = msg[2] + ' ' + msg[0]
+        date = datetime.datetime.strptime(dt, '%m/%d/%y %H:%M')
 
-        # Get ticker
-        SINGLE_MESSAGE_TICKER_INDEX = 5
-        ticker = msg[SINGLE_MESSAGE_TICKER_INDEX]
+        # These words indicate multiple events per msg
+        multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes']
+        # Two-word ratings contain these words first
+        two_word_rating_list = ['sector', 'market']
 
-        # Get message type and rating
-        # Assumed format "upgraded to x"
-        if 'upgraded' in msg:
-            msgtype = 'upgrade'
-            ix = msg.index('upgraded')
-            if msg[ix+2] in two_word_rating_list:
-                rating = msg[ix+2] + ' ' + msg[ix+3]
-            else:
-                rating = msg[ix+2]
-        # Assumed format "downgraded to x"
-        elif 'downgraded' in msg:
-            msgtype = 'downgrade'
-            ix = msg.index('downgraded')
-            if msg[ix+2] in two_word_rating_list:
-                rating = msg[ix+2] + ' ' + msg[ix+3]
-            else:
-                rating = msg[ix+2]
-        # Assumed format "initiated x"
-        elif 'initiated' in msg:
-            msgtype = 'initiates'
-            ix = msg.index('initiated')
-            if msg[ix+1] in two_word_rating_list:
-                rating = msg[ix+1] + ' ' + msg[ix+2]
-            else:
-                rating = msg[ix+1]
-        # Assumed format "resumed x"
-        elif 'resumed' in msg:
-            msgtype = 'resumption'
-            ix = msg.index('resumed')
-            if msg[ix+1] in two_word_rating_list:
-                rating = msg[ix+1] + ' ' + msg[ix+2]
-            else:
-                rating = msg[ix+1]
-        # Assumed format "reinstated x"
-        elif 'reinstated' in msg:
-            msgtype = 'resumption'
-            ix = msg.index('resumed')
-            if msg[ix+1] in two_word_rating_list:
-                rating = msg[ix+1] + ' ' + msg[ix+2]
-            else:
-                rating = msg[ix+1]
-        # Assumed format "assumed x"
-        elif 'assumed' in msg:
-            msgtype = 'resumption'
-            ix = msg.index('assumed')
-            if msg[ix+1] in two_word_rating_list:
-                rating = msg[ix+1] + ' ' + msg[ix+2]
-            else:
-                rating = msg[ix+1]
-        else:
-            msgtype = 'N/A'
+        # Get firm name
+        firm_list = pd.DataFrame.from_csv('research_firm_list.csv')
+        firm_list['eval'] = firm_list['Unique Identifier'].isin(msg)
+        try:
+            firm = firm_list[firm_list['eval']].index.values[0]
+        except:
+            firm = 'N/A'
 
-        # Get Analyst (assumes format "Analyst is xx xx")
-        if "Analyst" in msg:
-            ix = msg.index('Analyst')
-            analyst = msg[ix+2] + ' ' + msg[ix+3]
+        # Check whether is single upgrade / downgrade / initiation / resumption
+        if not any([e in msg for e in multiple_msg_tokens]):
 
-        # Get new PT and currency (assumed format 'Target' followed by new PT as first numerical value)
-        if "Target" in msg:
-            ix = msg.index('Target')
-            for i, x in enumerate(msg[ix:]):
-                # Check if contains float
-                if len(re.findall('\d+.\d+', x)) > 0:
-                    PT = re.findall('\d+.\d+', x)[0]
-                # Check if contains int
-                elif len(re.findall('\d+', x)) > 0:
-                    PT = re.findall('\d+', x)[0]
-                # If doesn't contain float or int continue
+            # Get ticker
+            SINGLE_MESSAGE_TICKER_INDEX = 5
+            ticker = msg[SINGLE_MESSAGE_TICKER_INDEX]
+
+            # Get message type and rating
+            # Assumed format "upgraded to x"
+            if 'upgraded' in msg:
+                msgtype = 'upgrade'
+                ix = msg.index('upgraded')
+                if msg[ix+2] in two_word_rating_list:
+                    rating = msg[ix+2] + ' ' + msg[ix+3]
                 else:
-                    continue
-                # Check if item contains currency
-                if PT == x:
-                    curr = msg[ix:][i-1]
+                    rating = msg[ix+2]
+            # Assumed format "downgraded to x"
+            elif 'downgraded' in msg:
+                msgtype = 'downgrade'
+                ix = msg.index('downgraded')
+                if msg[ix+2] in two_word_rating_list:
+                    rating = msg[ix+2] + ' ' + msg[ix+3]
                 else:
-                    curr = ''.join(i for i in x if not i.isdigit())
+                    rating = msg[ix+2]
+            # Assumed format "initiated x"
+            elif 'initiated' in msg:
+                msgtype = 'initiates'
+                ix = msg.index('initiated')
+                if msg[ix+1] in two_word_rating_list:
+                    rating = msg[ix+1] + ' ' + msg[ix+2]
+                else:
+                    rating = msg[ix+1]
+            # Assumed format "resumed x"
+            elif 'resumed' in msg:
+                msgtype = 'resumption'
+                ix = msg.index('resumed')
+                if msg[ix+1] in two_word_rating_list:
+                    rating = msg[ix+1] + ' ' + msg[ix+2]
+                else:
+                    rating = msg[ix+1]
+            # Assumed format "reinstated x"
+            elif 'reinstated' in msg:
+                msgtype = 'reinstation'
+                ix = msg.index('reinstated')
+                if msg[ix+1] in two_word_rating_list:
+                    rating = msg[ix+1] + ' ' + msg[ix+2]
+                else:
+                    rating = msg[ix+1]
+            # Assumed format "assumed x"
+            elif 'assumed' in msg:
+                msgtype = 'assumption'
+                ix = msg.index('assumed')
+                if msg[ix+1] in two_word_rating_list:
+                    rating = msg[ix+1] + ' ' + msg[ix+2]
+                else:
+                    rating = msg[ix+1]
+            else:
+                msgtype = 'N/A'
 
-    print 'Date: ' + str(date)
-    print 'Firm: ' + firm
-    print 'Ticker: ' + ticker
-    print 'Type: ' + msgtype
-    print 'Rating: ' + rating
-    print 'PT: ' + curr + str(PT)
-    print 'Analyst: ' + analyst
+            # Get Analyst (assumes format "Analyst is xx xx")
+            if "Analyst" in msg:
+                ix = msg.index('Analyst')
+                analyst = msg[ix+2] + ' ' + msg[ix+3]
+
+            # Get new PT and currency (assumed format 'Target' followed by new PT as first numerical value)
+            if "Target" in msg:
+                ix = msg.index('Target')
+                for i, x in enumerate(msg[ix:]):
+                    # Check if contains float
+                    if len(re.findall('\d+.\d+', x)) > 0:
+                        PT = re.findall('\d+.\d+', x)[0]
+                        # Check if item contains currency
+                        if PT == x:
+                            curr = msg[ix:][i-1]
+                            # Check for Canada
+                            if msg[ix:][i-2] == 'C':
+                                curr = 'C' + curr
+                        else:
+                            curr = ''.join(i for i in x if not i.isdigit())
+                            # Check for Canada
+                            if msg[ix:][i-2] == 'C':
+                                curr = 'C' + curr
+                        break
+                    # Check if contains int
+                    elif len(re.findall('\d+', x)) > 0:
+                        PT = re.findall('\d+', x)[0]
+                        # Check if item contains currency
+                        if PT == x:
+                            curr = msg[ix:][i-1]
+                            # Check for Canada
+                            if msg[ix:][i-2] == 'C':
+                                curr = 'C' + curr
+                        else:
+                            curr = ''.join(i for i in x if not i.isdigit())
+                            # Check for Canada
+                            if msg[ix:][i-2] == 'C':
+                                curr = 'C' + curr
+                        break
+                    # If doesn't contain float or int continue
+                    else:
+                        continue
+
+            print '------------------------------'
+            print '        NEW MESSAGE           '
+            print '------------------------------'
+            print 'Date: ' + str(date)
+            print 'Firm: ' + firm
+            print 'Ticker: ' + ticker
+            print 'Type: ' + msgtype
+            print 'Rating: ' + rating
+            print 'PT: ' + curr + str(PT)
+            print 'Analyst: ' + analyst
+            print ''
+
+        # Again get all unread messages
+        x, y = mail.uid('search', None, "(UNSEEN)")
+
+        # Check if unread emails
+        unreadMails = len(y[0].split()) > 0
+
 
 getMessages()
