@@ -1,7 +1,8 @@
+import datetime
 import numpy as np
+import pandas as pd
 import imaplib
 import email
-import dateutil.parser
 import nltk
 import BBG
 import pdb
@@ -128,15 +129,32 @@ def getMessages():
     index = tokenized_block.index('ET')
     msg = tokenized_block[index-1:]
 
+    # Get Date
+    dt = msg[2] + ' ' + msg[0]
+    date = datetime.datetime.strptime(dt, '%m/%d/%y %H:%M')
+
     # These words indicate multiple events per msg
     multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes']
     # Two-word ratings contain these words first
     two_word_rating_list = ['sector', 'market']
 
+    # Get firm name
+    firm_list = pd.DataFrame.from_csv('research_firm_list.csv')
+    firm_list['eval'] = firm_list['Unique Identifier'].isin(msg)
+    try:
+        firm = firm_list[firm_list['eval']].index.values[0]
+    except:
+        firm = 'N/A'
+
     # Check whether is single upgrade / downgrade / initiation / resumption
     if not any([e in msg for e in multiple_msg_tokens]):
+
+        # Get ticker
         SINGLE_MESSAGE_TICKER_INDEX = 5
         ticker = msg[SINGLE_MESSAGE_TICKER_INDEX]
+
+        # Get message type and rating
+        # Assumed format "upgraded to x"
         if 'upgraded' in msg:
             msgtype = 'upgrade'
             ix = msg.index('upgraded')
@@ -144,6 +162,7 @@ def getMessages():
                 rating = msg[ix+2] + ' ' + msg[ix+3]
             else:
                 rating = msg[ix+2]
+        # Assumed format "downgraded to x"
         elif 'downgraded' in msg:
             msgtype = 'downgrade'
             ix = msg.index('downgraded')
@@ -151,6 +170,7 @@ def getMessages():
                 rating = msg[ix+2] + ' ' + msg[ix+3]
             else:
                 rating = msg[ix+2]
+        # Assumed format "initiated x"
         elif 'initiated' in msg:
             msgtype = 'initiates'
             ix = msg.index('initiated')
@@ -158,6 +178,7 @@ def getMessages():
                 rating = msg[ix+1] + ' ' + msg[ix+2]
             else:
                 rating = msg[ix+1]
+        # Assumed format "resumed x"
         elif 'resumed' in msg:
             msgtype = 'resumption'
             ix = msg.index('resumed')
@@ -165,6 +186,7 @@ def getMessages():
                 rating = msg[ix+1] + ' ' + msg[ix+2]
             else:
                 rating = msg[ix+1]
+        # Assumed format "reinstated x"
         elif 'reinstated' in msg:
             msgtype = 'resumption'
             ix = msg.index('resumed')
@@ -172,6 +194,7 @@ def getMessages():
                 rating = msg[ix+1] + ' ' + msg[ix+2]
             else:
                 rating = msg[ix+1]
+        # Assumed format "assumed x"
         elif 'assumed' in msg:
             msgtype = 'resumption'
             ix = msg.index('assumed')
@@ -181,6 +204,29 @@ def getMessages():
                 rating = msg[ix+1]
         else:
             msgtype = 'N/A'
-    # Check whether upgrade, downgrade, or initiation, or resumption
 
-    pdb.set_trace()
+        # Get Analyst (assumes format "Analyst is xx xx")
+        if "Analyst" in msg:
+            ix = msg.index('Analyst')
+            analyst = msg[ix+2] + ' ' + msg[ix+3]
+
+        # Get new PT (assumed format 'Target' followed by new PT as first numerical value)
+        if "Target" in msg:
+            ix = msg.index('Target')
+            for i, x in enumerate(msg[ix:]):
+                try:
+                    PT = float(x)
+                    curr = msg[ix:][i-1]
+                    break
+                except:
+                    pass
+
+    print 'Date: ' + str(date)
+    print 'Firm: ' + firm
+    print 'Ticker: ' + ticker
+    print 'Type: ' + msgtype
+    print 'Rating: ' + rating
+    print 'PT: ' + curr + str(PT)
+    print 'Analyst: ' + analyst
+
+getMessages()
