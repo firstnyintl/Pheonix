@@ -246,12 +246,12 @@ def getMessages():
                     else:
                         rating = msg[ix+1]
                 else:
-                    raise Exception('Message type not accounted for')
+                    return True, None
 
                 # Get Price Target and currency
                 PT, curr = getPT(msg)
                 return True, [ticker, msgtype, rating, PT, curr, analyst]
-        return False
+        return False, None
 
     # Login to GMAIL
     mail = imaplib.IMAP4_SSL('imap.gmail.com')
@@ -299,7 +299,7 @@ def getMessages():
         date = datetime.datetime.strptime(dt, '%m/%d/%y %H:%M')
 
         # These words indicate multiple events per msg
-        multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes']
+        multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes', 'notable']
         # Two-word ratings contain these words first
         two_word_rating_list = ['sector', 'market']
 
@@ -311,27 +311,42 @@ def getMessages():
         except:
             firm = ''
 
+        # Check if email only contains one message (one ticker)
         isSingle, vals = getSingle(msg)
         if isSingle:
-            ticker = vals[0]
-            msgtype = vals[1]
-            rating = vals[2]
-            PT = vals[3]
-            curr = vals[4]
-            analyst = vals[5]
+            if vals is None:
+                print '------------------------------'
+                print '        NEW MESSAGE           '
+                print '------------------------------'
+                print ' Can\'t process message type  '
+                print ''
+            else:
+                ticker = vals[0]
+                msgtype = vals[1]
+                rating = vals[2]
+                PT = vals[3]
+                curr = vals[4]
+                analyst = vals[5]
 
+                print '------------------------------'
+                print '        NEW MESSAGE           '
+                print '------------------------------'
+                print 'Date: ' + str(date)
+                print 'Firm: ' + firm
+                print 'Ticker: ' + ticker
+                print 'Type: ' + msgtype
+                print 'Rating: ' + rating
+                print 'PT: ' + str(PT)
+                print 'FX: ' + curr
+                print 'Analyst: ' + analyst
+                print ''
+        else:
             print '------------------------------'
             print '        NEW MESSAGE           '
             print '------------------------------'
-            print 'Date: ' + str(date)
-            print 'Firm: ' + firm
-            print 'Ticker: ' + ticker
-            print 'Type: ' + msgtype
-            print 'Rating: ' + rating
-            print 'PT: ' + str(PT)
-            print 'FX: ' + curr
-            print 'Analyst: ' + analyst
+            print 'Can\'t process more than one msg'
             print ''
+
 
         # Again get all unread messages
         x, y = mail.uid('search', None, "(UNSEEN)")
