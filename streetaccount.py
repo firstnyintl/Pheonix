@@ -1,4 +1,5 @@
 import datetime
+import re
 import numpy as np
 import pandas as pd
 import imaplib
@@ -92,9 +93,9 @@ def getMessages():
         if maintype == 'multipart':
             for part in email_message_instance.get_payload():
                 if part.get_content_maintype() == 'text':
-                    return part.get_payload()
+                    return part.get_payload(decode=True)
         elif maintype == 'text':
-            return email_message_instance.get_payload()
+            return email_message_instance.get_payload(decode=True)
 
     # Login to GMAIL
     mail = imaplib.IMAP4_SSL('imap.gmail.com')
@@ -210,16 +211,24 @@ def getMessages():
             ix = msg.index('Analyst')
             analyst = msg[ix+2] + ' ' + msg[ix+3]
 
-        # Get new PT (assumed format 'Target' followed by new PT as first numerical value)
+        # Get new PT and currency (assumed format 'Target' followed by new PT as first numerical value)
         if "Target" in msg:
             ix = msg.index('Target')
             for i, x in enumerate(msg[ix:]):
-                try:
-                    PT = float(x)
+                # Check if contains float
+                if len(re.findall('\d+.\d+', x)) > 0:
+                    PT = re.findall('\d+.\d+', x)[0]
+                # Check if contains int
+                elif len(re.findall('\d+', x)) > 0:
+                    PT = re.findall('\d+', x)[0]
+                # If doesn't contain float or int continue
+                else:
+                    continue
+                # Check if item contains currency
+                if PT == x:
                     curr = msg[ix:][i-1]
-                    break
-                except:
-                    pass
+                else:
+                    curr = ''.join(i for i in x if not i.isdigit())
 
     print 'Date: ' + str(date)
     print 'Firm: ' + firm
