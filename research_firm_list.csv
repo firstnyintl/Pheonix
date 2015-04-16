@@ -1,14 +1,17 @@
 SA,Unique Identifier
 ABG Sundal Collier,ABG
+APB Financial,APB
 Banca IMI,Banca
 Bank of America Merrill Lynch,Merrill
 Bankhaus Lampe,Lampe
 Barclays,Barclays
 BB&T Capital Markets,BB&T
+Benchmark Company LLC,Benchmark
 Berenberg,Berenberg
 Bernstein,Bernstein
 BMO Capital,BMO
 Bryan Garnier,Bryan
+BTIG,BTIG
 Canaccord Genuity,Canaccord
 Cantor Fitzgerald,Cantor
 Carnegie Securities,Carnegie
@@ -27,6 +30,7 @@ Evercore ISI,Evercore
 Exane BNP Paribas,Exane
 Goldman Sachs,Goldman
 Guggenheim Securities,Guggenheim
+H.C. Wainwright,H.C.
 Handelsbanken,Handelsbanken
 Helvea,Helvea
 Hovde Group,Hovde
@@ -34,15 +38,17 @@ HSBC,HSBC
 Investec,Investec
 Ivestec,Ivestec
 Janney,Janney
-Jeffries,Jeffries
+Jefferies,Jefferies
 JMP Securities,JMP
 JPMorgan,JPMorgan
 "Keefe, Bruyette & Woods",Keefe
 KeyBanc,KeyBanc
 Ladenburg Thalmann,Ladenburg
 Leerink Partners,Leerink
+Longbow Research,Longbow
 Macquarie,Macquarie
 Mainfirst Bank AG,Mainfirst
+Maxim Group,Maxim
 Mediobanca,Mediobanca
 MLV & Co,MLV
 MM Warburg,Warburg
@@ -50,6 +56,8 @@ Morgan Stanley,Morgan
 Natixis,Natixis
 Needham,Needham
 Nordea,Nordea
+NordLB,NordLB
+Northland Securities,Northland
 Numis,Numis
 Oddo,Oddo
 Pareto,Pareto
@@ -58,8 +66,10 @@ Piper Jaffray,Piper
 Pivotal Research,Pivotal
 Raymond James,Raymond
 RBC Capital,RBC
+Redburn,Redburn
 Roth Capital,Roth
 RW Baird,RW
+Scotiabank,Scotiabank
 SEB Enskilda,SEB
 Societe Generale,Societe
 Sparebank 1 Markets,Sparebank
@@ -67,14 +77,22 @@ Stephens,Stephens
 "Sterne, Agee",Sterne
 Stifel Nicolaus Europe,Stifel
 SunTrust Robinson Humphrey,SunTrust
+Susquehanna,Susquehanna
 Swedbank,Swedbank
 TD Securities,TD
 UBS,UBS
 Wedbush Securities,Wedbush
 Wells Fargo,Wells
 William Blair,William
-H.C. Wainwright,H.C.
-Northland Securities,Northland
-Scotiabank,Scotiabank
-Longbow Research,Longbow
-APB Financial,APB
+Cowen,Cowen
+FBR Capital,FBR
+"Brean Capital, LLC",Brean
+Kepler Cheuvreux,Kepler
+Landesbank Baden-Wuerttemberg,Baden-Wuerttemberg
+Davy,Davy
+Rabo,Rabo
+Gilbert Dupont,Gilbert
+GMP Securities,GMP
+Vontobel,Vontobel
+Wolfe Research,Wolfe
+Imperial Capital,Imperial

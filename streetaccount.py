@@ -124,7 +124,7 @@ def getMessages():
             if 'p' in curr:
                 return 'GBP'
             # Check if Euro sign
-            if curr == '\x80':
+            if '\x80' in curr:
                 return 'EUR'
             return curr
 
@@ -164,29 +164,43 @@ def getMessages():
             SINGLE_MESSAGE_TICKER_INDEX = 5
             ticker = msg[SINGLE_MESSAGE_TICKER_INDEX]
 
-            # Get Analyst (assumes format "Analyst is xx xx")
+            # Get Analyst (assumed that message ends right after analyst or has another bullet)
             if "Analyst" in msg:
                 ix = msg.index('Analyst')
-                analyst = msg[ix+2] + ' ' + msg[ix+3]
+                # Get rid of possible bad encoding where next bullet in analyst last name
+
+                # Find beginning of analyst name
+                if msg[ix+1] != 'is': startix = ix+1
+                else: startix = ix+2
+
+                # Get full msg substring until next bullet or end of msg, extract analyst
+                msg_substring = ' '.join(msg[startix:])
+                if '*' in msg_substring: analyst = msg_substring[:msg_substring.index('*')]
+                else: analyst = msg_substring
+
             else:
                 analyst = ''
 
             # Get message type and rating
 
             # Check if target price increase or decrease
-            # Assumed format 'target in/decreased to x' max 5 spaces after ticker
-            if 'target' in msg[SINGLE_MESSAGE_TICKER_INDEX:SINGLE_MESSAGE_TICKER_INDEX+5]:
+            # Assumed format 'target in/decreased to x' before first bullet or +5 spaces
+            try:
+                stpindx = msg.index('*')
+            except:
+                stpindx = 5
+            if 'target' in msg[SINGLE_MESSAGE_TICKER_INDEX:stpindx]:
                 ix = msg.index('target')
-                if msg[ix+1] == 'increased':
+                if msg[ix+1] == 'increased' or msg[ix-1] == 'raises':
                     msgtype = 'PT increased'
                     PT, curr = getPT(msg)
                     rating = ''
-                elif msg[ix+1] == 'decreased':
+                elif msg[ix+1] == 'decreased' or msg[ix-1] == 'lowers':
                     msgtype = 'PT decreased'
                     PT, curr = getPT(msg)
                     rating = ''
                 else:
-                    raise Exception('Message type not accounted for')
+                    return True, None
                 return True, [ticker, msgtype, rating, PT, curr, analyst]
             # Assumed format "upgraded to x"
             else:
@@ -301,7 +315,7 @@ def getMessages():
         # These words indicate multiple events per msg
         multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes', 'notable']
         # Two-word ratings contain these words first
-        two_word_rating_list = ['sector', 'market']
+        two_word_rating_list = ['sector', 'market', 'strong']
 
         # Get firm name
         firm_list = pd.DataFrame.from_csv('research_firm_list.csv')
