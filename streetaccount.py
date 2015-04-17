@@ -1,7 +1,7 @@
 import datetime
 import re
 import numpy as np
-import pandas as pd
+from pandas import HDFStore, Series, DataFrame
 import imaplib
 import email
 import nltk
@@ -9,19 +9,35 @@ import BBG
 import pdb
 
 
-class SAMessage:
+def createSAMessage(date, firm, values):
     """
-    Contains information about a single message-- e.g. an upgrade, downgrade, initiation, etc. -- as well as several functions that can be computed using information from Bloomberg
+    Creates a pandas Series object with a street account message, calculates additional variables, and stores them in HDF5
     """
-    def __init__(self, ticker, type, firm, analyst, PT, old_PT, date):
-        self.ticker = ticker
-        self.type = type
-        self.firm = firm
-        self.analyst = analyst
-        self.PT = float(PT)
-        self.old_PT = float(old_PT)
-        self.date = date
-        self.BBGData = BBG.getBulkAnalystRecs(self.ticker)
+
+    # Create Series Object
+    columns = ['Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst']
+    vals = [firm, values[0], values[1], values[2], values[3], values[4], values[5]]
+    vals = [str(i) for i in vals]
+    msg = DataFrame([vals], columns=columns, index=[date])
+
+    print '------------------------------'
+    print '        NEW MESSAGE           '
+    print '------------------------------'
+    print 'Date: ' + str(date)
+    print 'Firm: ' + firm
+    print 'Ticker: ' + values[0]
+    print 'Type: ' + values[1]
+    print 'Rating: ' + values[2]
+    print 'PT: ' + str(values[3])
+    print 'FX: ' + values[4]
+    print 'Analyst: ' + values[5]
+    print ''
+
+    # Create HDF5 interface
+    store = HDFStore('streetaccount.h5')
+    # store.put('realtime2', msg, format='table', data_columns=True)
+    store.append('realtime5', msg, min_itemsize=50, data_columns=True)
+    store.close()
 
     def stHighLow(self):
         """
@@ -167,7 +183,6 @@ def getMessages():
             # Get Analyst (assumed that message ends right after analyst or has another bullet)
             if "Analyst" in msg:
                 ix = msg.index('Analyst')
-                # Get rid of possible bad encoding where next bullet in analyst last name
 
                 # Find beginning of analyst name
                 if msg[ix+1] != 'is': startix = ix+1
@@ -308,6 +323,11 @@ def getMessages():
         index = tokenized_block.index('ET')
         msg = tokenized_block[index-1:]
 
+        # Check if end of day summary, skip
+        if 'Summary' in tokenized_block[:40]:
+            mail.store(latest_email_uid, '+FLAGS', '\\Seen')
+            continue
+
         # Get Date
         dt = msg[2] + ' ' + msg[0]
         date = datetime.datetime.strptime(dt, '%m/%d/%y %H:%M')
@@ -318,7 +338,7 @@ def getMessages():
         two_word_rating_list = ['sector', 'market', 'strong']
 
         # Get firm name
-        firm_list = pd.DataFrame.from_csv('research_firm_list.csv')
+        firm_list = DataFrame.from_csv('research_firm_list.csv')
         firm_list['eval'] = firm_list['Unique Identifier'].isin(msg)
         try:
             firm = firm_list[firm_list['eval']].index.values[0]
@@ -335,25 +355,8 @@ def getMessages():
                 print ' Can\'t process message type  '
                 print ''
             else:
-                ticker = vals[0]
-                msgtype = vals[1]
-                rating = vals[2]
-                PT = vals[3]
-                curr = vals[4]
-                analyst = vals[5]
+                createSAMessage(date, firm, vals)
 
-                print '------------------------------'
-                print '        NEW MESSAGE           '
-                print '------------------------------'
-                print 'Date: ' + str(date)
-                print 'Firm: ' + firm
-                print 'Ticker: ' + ticker
-                print 'Type: ' + msgtype
-                print 'Rating: ' + rating
-                print 'PT: ' + str(PT)
-                print 'FX: ' + curr
-                print 'Analyst: ' + analyst
-                print ''
         else:
             print '------------------------------'
             print '        NEW MESSAGE           '
