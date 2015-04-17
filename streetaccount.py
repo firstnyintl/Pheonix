@@ -102,6 +102,84 @@ def createSAMessage(date, firm, values):
 
 
 def getMessages():
+    """
+    Log into email, process unread emails, process events from emails, write events to database
+    """
+
+    def emailLogin():
+        """
+        Log into gmail using IMAP, return imaplib object
+        """
+        USER = 'ratingsstock'
+        PW = 'firstny2015'
+        SERVER = 'imap.gmail.com'
+        MAIN_FOLDER = 'inbox'
+        mail = imaplib.IMAP4_SSL(SERVER)
+        mail.login(USER, PW)
+        mail.list()
+        mail.select(MAIN_FOLDER)
+        return mail
+
+    def getLastMsgCore(y, mail):
+        """
+        Pulls the first unread email and returns a processed core tokenized message
+        """
+        # Get number of unread emails
+        latest_email_uid = y[0].split()[-1]
+        result, data = mail.uid('fetch', latest_email_uid, "(RFC822)")
+        raw_email = data[0][1]
+
+        # Generate email message object from raw message
+        email_message = email.message_from_string(raw_email)
+
+        # Convert to text block
+        block = get_text_block(email_message)
+
+        # Get rid of header and footer
+        block = block.split('StreetAccount')[1:3]
+        block = "".join(block)
+
+        # Get rid of =, /r, /n
+        block = block.translate(None, '=\r\\')
+        block = block.translate(None, '\n')
+
+        # Tokenize using NLTK
+        tokenized_block = nltk.word_tokenize(block)
+
+        # Isolate message from email and return
+        index = tokenized_block.index('ET')
+        msg = tokenized_block[index-1:]
+        return msg
+
+    def getDate(msg):
+        """
+        Process date from message
+        """
+        # Sometimes (e.g. in case of revision), chars stuck in date, remove
+        sub = re.sub('[^a-zA-Z_]+', '', msg[0])
+
+        # Get Date
+        if not sub: dt = msg[2] + ' ' + msg[0]
+        else: dt = msg[2] + ' ' + msg[0].replace(sub, '')
+
+        # Store date in datetime object
+        date = datetime.datetime.strptime(dt, '%m/%d/%y %H:%M')
+        return date
+
+    def getFirm(msg):
+        """
+        Cross reference with firm database and return firm name
+        """
+        # Get firm name
+        csv_file = 'research_firm_list.csv'
+        firm_list = DataFrame.from_csv(csv_file)
+        firm_list['eval'] = firm_list['Unique Identifier'].isin(msg)
+        try:
+            firm = firm_list[firm_list['eval']].index.values[0]
+        except:
+            firm = ''
+        return firm
+
 
     def get_text_block(email_message_instance):
         """
@@ -135,7 +213,10 @@ def getMessages():
                     return 'USD'
             else: return curr
         else:
+            # Seperate non digits from PT field
             curr = ''.join(i for i in msg[PTix] if not i.isdigit())
+            # Get rid of potential "."
+            curr = curr.replace('.', '')
             # Check if 'p' in identifier, return GBP
             if 'p' in curr:
                 return 'GBP'
@@ -168,10 +249,18 @@ def getMessages():
 
     def getSingle(msg):
         """
-        Check if single message and process message
+        Check if single message and, if so, process message and return event values
 
-        Returns message parameters, as well as True/False whether single or not
+        Returns a tuple: (boolean, list), where:
+        --boolean: "True" if single event, otherwise "False"
+        --list: [ticker, msgtype, rating, PT, curr, analyst]
         """
+
+        # If msg contains any of the following, there are multiple events per message
+        multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes', 'notable']
+
+        # If rating starts with one of the following, it is a two-word rating (e.g. "sector perform")
+        two_word_rating_list = ['sector', 'market', 'strong']
 
         # Check whether is single upgrade / downgrade / initiation / resumption
         if not any([e in msg for e in multiple_msg_tokens]):
@@ -217,146 +306,65 @@ def getMessages():
                 else:
                     return True, None
                 return True, [ticker, msgtype, rating, PT, curr, analyst]
-            # Assumed format "upgraded to x"
+            # If not PT change, check for other msg types 
             else:
-                if 'upgraded' in msg:
-                    msgtype = 'upgrade'
-                    ix = msg.index('upgraded')
-                    if msg[ix+2] in two_word_rating_list:
-                        rating = msg[ix+2] + ' ' + msg[ix+3]
-                    else:
-                        rating = msg[ix+2]
-                # Assumed format "downgraded to x"
-                elif 'downgraded' in msg:
-                    msgtype = 'downgrade'
-                    ix = msg.index('downgraded')
-                    if msg[ix+2] in two_word_rating_list:
-                        rating = msg[ix+2] + ' ' + msg[ix+3]
-                    else:
-                        rating = msg[ix+2]
-                # Assumed format "initiated x"
-                elif 'initiated' in msg:
-                    msgtype = 'initiation'
-                    ix = msg.index('initiated')
-                    if msg[ix+1] in two_word_rating_list:
-                        rating = msg[ix+1] + ' ' + msg[ix+2]
-                    else:
-                        rating = msg[ix+1]
-                # Assumed format "resumed x"
-                elif 'resumed' in msg:
-                    msgtype = 'resumption'
-                    ix = msg.index('resumed')
-                    if msg[ix+1] in two_word_rating_list:
-                        rating = msg[ix+1] + ' ' + msg[ix+2]
-                    else:
-                        rating = msg[ix+1]
-                # Assumed format "reinstated x"
-                elif 'reinstated' in msg:
-                    msgtype = 'resumption'
-                    ix = msg.index('reinstated')
-                    if msg[ix+1] in two_word_rating_list:
-                        rating = msg[ix+1] + ' ' + msg[ix+2]
-                    else:
-                        rating = msg[ix+1]
-                # Assumed format "reinstated x"
-                elif 'reinitiated' in msg:
-                    msgtype = 'resumption'
-                    ix = msg.index('reinitiated')
-                    if msg[ix+1] in two_word_rating_list:
-                        rating = msg[ix+1] + ' ' + msg[ix+2]
-                    else:
-                        rating = msg[ix+1]
-                # Assumed format "assumed x"
-                elif 'assumed' in msg:
-                    msgtype = 'resumption'
-                    ix = msg.index('assumed')
-                    if msg[ix+1] in two_word_rating_list:
-                        rating = msg[ix+1] + ' ' + msg[ix+2]
-                    else:
-                        rating = msg[ix+1]
-                else:
-                    return True, None
+                key_dict = {'upgraded': 'upgrade',
+                            'downgraded': 'downgrade',
+                            'initiated': 'initiation',
+                            'resumed': 'resumption',
+                            'reinstated': 'resumption',
+                            're-instated': 'resumption',
+                            'reinitiated': 'resumption',
+                            're-initiated': 'resumption',
+                            'assumed': 'resumption',
+                            }
+                msgtype_recognized = False
+                for key, value in key_dict.iteritems():
+                    if key in msg:
+                        msgtype_recognized = True
+                        msgtype = value
+                        ix = msg.index(key)
+                        if msg[ix+2] in two_word_rating_list:
+                            rating = msg[ix+2] + ' ' + msg[ix+3]
+                        else:
+                            rating = msg[ix+2]
+                # If msg type not accounted for, exit
+                if not msgtype_recognized: return True, None
 
                 # Get Price Target and currency
                 PT, curr = getPT(msg)
                 return True, [ticker, msgtype, rating, PT, curr, analyst]
         return False, None
 
-    # Login to GMAIL
-    mail = imaplib.IMAP4_SSL('imap.gmail.com')
-    mail.login("ratingsstock", "firstny2015")
-    mail.list()
-    mail.select("inbox")
+    def processMsg(msg):
+        """
+        Process message, if successful, write to database, if not print why
+        """
+        # Process date
+        date = getDate(msg)
 
-    # Get all unread messages
-    x, y = mail.uid('search', None, "(UNSEEN)")
+        # Process firm name
+        firm = getFirm(msg)
 
-    # Check if unread emails
-    unreadMails = len(y[0].split()) > 0
-
-    # While there are unread emails
-    while(unreadMails):
-
-        # Get number of unread emails
-        latest_email_uid = y[0].split()[-1]
-        result, data = mail.uid('fetch', latest_email_uid, "(RFC822)")
-        raw_email = data[0][1]
-
-        # Generate email message object from raw message
-        email_message = email.message_from_string(raw_email)
-
-        # Convert to text block
-        block = get_text_block(email_message)
-
-        # Get rid of header and footer
-        block = block.split('StreetAccount')[1:3]
-        block = "".join(block)
-
-        # Get rid of =, /r, /n
-        block = block.translate(None, '=\r\\')
-        block = block.translate(None, '\n')
-
-        # Tokenize using NLTK
-        tokenized_block = nltk.word_tokenize(block)
-
-        # Isolate message from email
-        index = tokenized_block.index('ET')
-        msg = tokenized_block[index-1:]
-
-        # Check if end of day summary, skip
-        if 'Summary' in tokenized_block[:40]:
-            mail.store(latest_email_uid, '+FLAGS', '\\Seen')
-            continue
-
-        # Get Date
-        dt = msg[2] + ' ' + msg[0]
-        date = datetime.datetime.strptime(dt, '%m/%d/%y %H:%M')
-
-        # These words indicate multiple events per msg
-        multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes', 'notable']
-        # Two-word ratings contain these words first
-        two_word_rating_list = ['sector', 'market', 'strong']
-
-        # Get firm name
-        firm_list = DataFrame.from_csv('research_firm_list.csv')
-        firm_list['eval'] = firm_list['Unique Identifier'].isin(msg)
-        try:
-            firm = firm_list[firm_list['eval']].index.values[0]
-        except:
-            firm = ''
-
-        # Check if email only contains one message (one ticker)
+        # Check if email only contains one event (one ticker)
         isSingle, vals = getSingle(msg)
+
+        # If contains only one event
         if isSingle:
+
+            # If doesn't recognize type print following
             if vals is None:
                 print '------------------------------'
                 print '        NEW MESSAGE           '
                 print '------------------------------'
                 print ' Can\'t process message type  '
                 print ''
+
+            # If type recognized, write event to database
             else:
                 createSAMessage(date, firm, vals)
 
+        # If more than one event, print following
         else:
             print '------------------------------'
             print '        NEW MESSAGE           '
@@ -364,12 +372,28 @@ def getMessages():
             print 'Can\'t process more than one msg'
             print ''
 
+    # Login to gmail and get mail object
+    mail = emailLogin()
 
-        # Again get all unread messages
+    # Get unread message ids
+    x, y = mail.uid('search', None, "(UNSEEN)")
+
+    # Check if there are unread emails
+    unreadMails = len(y[0].split()) > 0
+
+    # While there are unread emails
+    while(unreadMails):
+
+        # Get first unread email and get processed message
+        msg = getLastMsgCore(y, mail)
+
+        # Process message
+        processMsg(msg)
+
+        # Update unread email boolean
         x, y = mail.uid('search', None, "(UNSEEN)")
-
-        # Check if unread emails
         unreadMails = len(y[0].split()) > 0
 
-
-getMessages()
+# If this is executed as script, i.e. from console "python streetaccount.py"
+if __name__ == '__main__':
+    getMessages()
