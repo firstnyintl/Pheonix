@@ -1,7 +1,7 @@
 import datetime
 import re
 import numpy as np
-from pandas import HDFStore, Series, DataFrame
+from pandas import HDFStore, DataFrame
 import imaplib
 import email
 import nltk
@@ -9,35 +9,51 @@ import BBG
 import pdb
 
 
-def createSAMessage(date, firm, values):
+def processEvent(event):
     """
-    Creates a pandas Series object with a street account message, calculates additional variables, and stores them in HDF5
+    Takes incoming event, calculates additional fields, writes Event to Database, updates ratings
+
+    Inputs:
+    -- date (datetime.datetime), date of event
     """
 
-    # Create Series Object
-    columns = ['Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst']
-    vals = [firm, values[0], values[1], values[2], values[3], values[4], values[5]]
-    vals = [str(i) for i in vals]
-    msg = DataFrame([vals], columns=columns, index=[date])
+    # Load database file
+    store = HDFStore('DB.h5')
+
+    # This is database folder to use
+    folder = 'ratings/streetaccount'
+
+    # Read event table
+    df = store[folder]
+
+    # Convert Event to Strings
+    event = [str(i) for i in event]
+
+    # Generate index (increment largest existing index)
+    index = df.index.max() + 1
+
+    # Create DataFrame of event
+    msg = DataFrame([event], columns=df.columns, index=[index])
+    # msg = DataFrame([event], columns=['Date', 'Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst'], index=[100000000])
+
+    # Add event to event table
+    store.append(folder, msg, min_itemsize=50, format='table', data_columns=True)
+
+    # End database access
+    store.close()
 
     print '------------------------------'
     print '        NEW MESSAGE           '
     print '------------------------------'
-    print 'Date: ' + str(date)
-    print 'Firm: ' + firm
-    print 'Ticker: ' + values[0]
-    print 'Type: ' + values[1]
-    print 'Rating: ' + values[2]
-    print 'PT: ' + str(values[3])
-    print 'FX: ' + values[4]
-    print 'Analyst: ' + values[5]
+    print 'Date: ' + event[0]
+    print 'Firm: ' + event[1]
+    print 'Ticker: ' + event[2]
+    print 'Type: ' + event[3]
+    print 'Rating: ' + event[4]
+    print 'PT: ' + event[5]
+    print 'FX: ' + event[6]
+    print 'Analyst: ' + event[7]
     print ''
-
-    # Create HDF5 interface
-    store = HDFStore('streetaccount.h5')
-    # store.put('realtime2', msg, format='table', data_columns=True)
-    store.append('realtime5', msg, min_itemsize=50, data_columns=True)
-    store.close()
 
     def stHighLow(self):
         """
@@ -213,7 +229,7 @@ def getMessages():
 
         # If "Analyst" not found, return empty string
         else:
-            analyst = ''
+            return ''
 
     def get_text_block(email_message_instance):
         """
@@ -421,7 +437,10 @@ def getMessages():
                         # Get index of keyword occurrence
                         ix = msg.index(key)
 
-                        # Assume keyword followed by 'to', if keyword in two_word_rating_list
+                        # If not followed by something like 'to', decrement index
+                        if len(msg[ix+1]) != 2: ix -= 1
+
+                        # Check if two-word rating
                         if msg[ix+2] in two_word_rating_list:
 
                             # Return two-word rating
@@ -458,6 +477,7 @@ def getMessages():
         # Check if email only contains one event (one ticker)
         isSingle, vals = getSingle(msg)
 
+        pdb.set_trace()
         # If contains only one event
         if isSingle:
 
@@ -471,7 +491,8 @@ def getMessages():
 
             # If type recognized, write event to database
             else:
-                createSAMessage(date, firm, vals)
+                event = [date, firm, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]]
+                processEvent(event)
 
         # If more than one event, print following
         else:
@@ -493,7 +514,7 @@ def getMessages():
     # While there are unread emails
     while(unreadMails):
 
-        # Get first unread email and get processed message
+        # Get first unread email and get tokenized message
         msg = getLastMsgCore(y, mail)
 
         # Process message
