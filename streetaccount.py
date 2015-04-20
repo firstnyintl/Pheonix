@@ -1,12 +1,15 @@
 import datetime
 import re
 import numpy as np
-from pandas import HDFStore, DataFrame
+from pandas import HDFStore, DataFrame, read_hdf
 import imaplib
 import email
 import nltk
 import BBG
 import pdb
+
+# Database file
+DB = 'DB.h5'
 
 
 def processEvent(event):
@@ -18,13 +21,13 @@ def processEvent(event):
     """
 
     # Load database file
-    store = HDFStore('DB.h5')
+    store = HDFStore(DB)
 
-    # This is database folder to use
-    folder = 'ratings/streetaccount'
+    # Database path
+    path = 'ratings/streetaccount'
 
     # Read event table
-    df = store[folder]
+    df = store[path]
 
     # Convert Event to Strings
     event = [str(i) for i in event]
@@ -37,7 +40,7 @@ def processEvent(event):
     # msg = DataFrame([event], columns=['Date', 'Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst'], index=[100000000])
 
     # Add event to event table
-    store.append(folder, msg, min_itemsize=50, format='table', data_columns=True)
+    store.append(path, msg, min_itemsize=50, format='table', data_columns=True)
 
     # End database access
     store.close()
@@ -117,6 +120,33 @@ def processEvent(event):
         return shrtInt > 5
 
 
+def addFirm(firmname, identifier):
+    """
+    Add firm name and unique identifier to DataBase
+    """
+
+    # Load database file
+    store = HDFStore(DB)
+
+    # Database path
+    path = 'ratings/firms'
+
+    # Read event table
+    df = store[path]
+
+    # Generate index (increment largest existing index)
+    index = df.index.max() + 1
+
+    # Create DataFrame of event
+    msg = DataFrame([[firmname, identifier]], columns=df.columns, index=[index])
+
+    # Add event to event table
+    store.append(path, msg, min_itemsize=50, format='table', data_columns=True)
+
+    # End database access
+    store.close()
+
+
 def getMessages():
     """
     Log into email, process unread emails, process events from emails, write events to database
@@ -163,6 +193,9 @@ def getMessages():
         block = block.translate(None, '=\r\\')
         block = block.translate(None, '\n')
 
+        # Special case--wierd norweigan char
+        block = block.replace('\xf8', 'o')
+
         # Tokenize using NLTK
         tokenized_block = nltk.word_tokenize(block)
 
@@ -182,24 +215,31 @@ def getMessages():
         if not sub: dt = msg[2] + ' ' + msg[0]
         else: dt = msg[2] + ' ' + msg[0].replace(sub, '')
 
+        # Special case-- remove '.'
+        dt = dt.replace('.', '')
+
         # Store date in datetime object
         date = datetime.datetime.strptime(dt, '%m/%d/%y %H:%M')
         return date
 
     def getFirm(msg):
         """
-        Cross reference with firm database and return firm name, if nothing found return emtpy string
+        Cross reference with firm database and return firm name, if nothing found add firm to database
         """
-        # Get firm name from csv database via unique identifier
-        csv_file = 'research_firm_list.csv'
-        firm_list = DataFrame.from_csv(csv_file)
-        firm_list['eval'] = firm_list['Unique Identifier'].isin(msg)
+        # Database path to fim list
+        path = 'ratings/firmlist'
 
-        # If firm found in database, return firm name
+        # Get firm list
+        firms = read_hdf(DB, path)
+
+        # Search whether message contains any firm identifier
+        firms['eval'] = firms['Identifier'].isin(msg)
+
+        # If identifier found in database, return firm name
         try:
-            return firm_list[firm_list['eval']].index.values[0]
+            return firms[firms['eval']].Firm.values[0]
 
-        # If not, return blank string
+        # If identifier not found, return empty string
         except:
             return ''
 
@@ -312,8 +352,8 @@ def getMessages():
                 # Convert string PT to float
                 PT = float(PT.replace(',', ''))
 
-                # Stop looking
-                break
+                # Stop looking and return
+                return PT, curr
 
             # If an int is found
             elif len(re.findall('\d+', x)) > 0:
@@ -327,10 +367,11 @@ def getMessages():
                 # Convert string PT to float
                 PT = float(PT.replace(',', ''))
 
-                # Stop looking
-                break
+                # Stop looking and return
+                return PT, curr
 
-        return PT, curr
+        # If nothing found (misc. format), return empty strings
+        return '', ''
 
     def getSingle(msg):
         """
@@ -477,7 +518,6 @@ def getMessages():
         # Check if email only contains one event (one ticker)
         isSingle, vals = getSingle(msg)
 
-        pdb.set_trace()
         # If contains only one event
         if isSingle:
 
