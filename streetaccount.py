@@ -5,7 +5,6 @@ from pandas import HDFStore, DataFrame, read_hdf
 import imaplib
 import email
 import nltk
-import BBG
 import pdb
 
 # Database file
@@ -15,19 +14,15 @@ DB = 'DB.h5'
 def processEvent(event):
     """
     Takes incoming event, calculates additional fields, writes Event to Database, updates ratings
-
-    Inputs:
-    -- date (datetime.datetime), date of event
     """
-
     # Load database file
     store = HDFStore(DB)
 
-    # Database path
-    path = 'ratings/streetaccount'
+    # Database events path
+    events_path = 'ratings/SAEvents'
 
     # Read event table
-    df = store[path]
+    df = store[events_path]
 
     # Convert Event to Strings
     event = [str(i) for i in event]
@@ -40,7 +35,7 @@ def processEvent(event):
     # msg = DataFrame([event], columns=['Date', 'Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst'], index=[100000000])
 
     # Add event to event table
-    store.append(path, msg, min_itemsize=50, format='table', data_columns=True)
+    store.append(events_path, msg, min_itemsize=50, format='table', data_columns=True)
 
     # End database access
     store.close()
@@ -57,17 +52,6 @@ def processEvent(event):
     print 'FX: ' + event[6]
     print 'Analyst: ' + event[7]
     print ''
-
-    def stHighLow(self):
-        """
-        Returns string to indicate whether Price Target is street high or low
-        """
-        if self.PT > np.max(self.ptlist):
-            return 'Street High'
-        elif self.PT < np.min(self.ptlist):
-            return 'Street Low'
-        else:
-            return 'Neither'
 
     def quartile(self):
         """
@@ -86,15 +70,6 @@ def processEvent(event):
         else:
             return 1
 
-    def pctChange(self):
-        """
-        Returns the % change between the new and old price targets
-        """
-        change = self.PT - self.old_PT
-        pctDif = change / self.old_PT
-        result = pctDif*100
-        return result
-
     # def changeLongTime(self):
     #     """
     #     calculated how long its been since the anayalts last peice and if that length of time is longer than 1 year, True is returned
@@ -105,12 +80,6 @@ def processEvent(event):
     #         return True
     #     else:
     #         return False
-
-    def newAnalyst(self):
-        """
-        Returns True if there is a new analyst
-        """
-        return not self.BBGData[self.BBGData['Firm Name'] == self.firm].Analyst.values[0] == self.analyst.upper()
 
     def shortInt(self):
         """
@@ -227,7 +196,7 @@ def getMessages():
         Cross reference with firm database and return firm name, if nothing found add firm to database
         """
         # Database path to fim list
-        path = 'ratings/firmlist'
+        path = 'ratings/firms'
 
         # Get firm list
         firms = read_hdf(DB, path)
@@ -326,16 +295,22 @@ def getMessages():
             # If not 'GBP' or 'EUR', return extracted string (e.g. 'NOK', 'SEK', 'TWD')
             return curr
 
-    def getPT(msg):
+    def getPT(msg, typ='single'):
         """
         Get price target from message and return
+        Behaves differently given whether single or multiple messages
+        ---If 'single' will look for target after occurrence of 'Target'
+        ---If 'multiple' will look for target after occurrence of ')'
         """
-        # Search for "Target" and "target", if found get index within message
-        if "Target" in msg: ix = msg.index('Target')
-        elif 'target' in msg: ix = msg.index('target')
-
-        # If can't find, return empty strings for TP and curr
-        else: return '', ''
+        # Look for occurrence of 'target' if single message
+        if typ == 'single':
+            if "Target" in msg: ix = msg.index('Target')
+            elif 'target' in msg: ix = msg.index('target')
+            else: return '',''
+        # Look for occurrence of ')' if not single message
+        else:
+            if ')' in msg: ix = msg.index(')')
+            else: return '',''
 
         # Loop through message after occurrence of "target"/"Target" until PT found
         for i, x in enumerate(msg[ix:]):
@@ -373,6 +348,64 @@ def getMessages():
         # If nothing found (misc. format), return empty strings
         return '', ''
 
+    def getMsgType(msg):
+        """
+        Returns three values:
+        --- boolean: whether message type was recognized
+        --- string: message type
+        --- string: rating
+        """
+        # If rating starts with one of the following, it is a two-word rating (e.g. "sector perform")
+        two_word_rating_list = ['sector', 'market', 'strong']
+
+        # Key/value dictionary for other message types in headline
+        key_dict = {'upgraded': 'upgrade',
+                    'downgraded': 'downgrade',
+                    'initiated': 'initiation',
+                    'resumed': 'resumption',
+                    'reinstated': 'resumption',
+                    're-instated': 'resumption',
+                    'reinitiated': 'resumption',
+                    're-initiated': 'resumption',
+                    'assumed': 'resumption',
+                    }
+
+        # Message type recognized instantiated to False
+        msgtype_recognized = False
+
+        # Search dictionary for keywords
+        for key, value in key_dict.iteritems():
+
+            # If keyword found
+            if key in msg:
+
+                # Message recognized
+                msgtype_recognized = True
+
+                # Set type according to dictionary
+                msgtype = value
+
+                # Get index of keyword occurrence
+                ix = msg.index(key)
+
+                # If not followed by something like 'to', decrement index
+                if len(msg[ix+1]) != 2: ix -= 1
+
+                # Check if two-word rating
+                if msg[ix+2] in two_word_rating_list:
+
+                    # Return two-word rating
+                    rating = msg[ix+2] + ' ' + msg[ix+3]
+
+                # If keyword not in two_word_rating list
+                else:
+
+                    # Return single-word rating
+                    rating = msg[ix+2]
+
+        return msgtype_recognized, msgtype, rating
+
+
     def getSingle(msg):
         """
         Check if single message and, if so, process message and return event values
@@ -388,18 +421,12 @@ def getMessages():
         # If msg contains any of the following, there are multiple events per message
         multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes', 'notable']
 
-        # If rating starts with one of the following, it is a two-word rating (e.g. "sector perform")
-        two_word_rating_list = ['sector', 'market', 'strong']
-
         # If no value in multiple_msg_tokens found in msg, assume single event
         if not any([e in msg for e in multiple_msg_tokens]):
 
             # Get ticker by looking at standard index in message
             SINGLE_MESSAGE_TICKER_INDEX = 5
             ticker = msg[SINGLE_MESSAGE_TICKER_INDEX]
-
-            # Look for analyst name
-            analyst = getAnalyst(msg)
 
             # Check if target price increase or decrease
             # Assumed format 'target in/decreased to x' before first bullet or +5 spaces after ticker (headline)
@@ -443,55 +470,13 @@ def getMessages():
                     return True, None
 
                 # Return True for single event, return values
-                return True, [ticker, msgtype, rating, PT, curr, analyst]
+                return True, [ticker, msgtype, rating, PT, curr]
 
             # If not PT change, check for other msg types 
             else:
 
-                # Key/value dictionary for other message types in headline
-                key_dict = {'upgraded': 'upgrade',
-                            'downgraded': 'downgrade',
-                            'initiated': 'initiation',
-                            'resumed': 'resumption',
-                            'reinstated': 'resumption',
-                            're-instated': 'resumption',
-                            'reinitiated': 'resumption',
-                            're-initiated': 'resumption',
-                            'assumed': 'resumption',
-                            }
-
-                # Message type recognized instantiated to False
-                msgtype_recognized = False
-
-                # Search dictionary for keywords
-                for key, value in key_dict.iteritems():
-
-                    # If keyword found
-                    if key in msg:
-
-                        # Message recognized
-                        msgtype_recognized = True
-
-                        # Set type according to dictionary
-                        msgtype = value
-
-                        # Get index of keyword occurrence
-                        ix = msg.index(key)
-
-                        # If not followed by something like 'to', decrement index
-                        if len(msg[ix+1]) != 2: ix -= 1
-
-                        # Check if two-word rating
-                        if msg[ix+2] in two_word_rating_list:
-
-                            # Return two-word rating
-                            rating = msg[ix+2] + ' ' + msg[ix+3]
-
-                        # If keyword not in two_word_rating list
-                        else:
-
-                            # Return single-word rating
-                            rating = msg[ix+2]
+                # Get msg type and rating
+                msgtype_recognized, msgtype, rating = getMsgType(msg)
 
                 # If msg type not recognized, exit
                 if not msgtype_recognized: return True, None
@@ -500,7 +485,7 @@ def getMessages():
                 PT, curr = getPT(msg)
 
                 # Return True and values
-                return True, [ticker, msgtype, rating, PT, curr, analyst]
+                return True, [ticker, msgtype, rating, PT, curr]
 
         # More than one event in msg
         return False, None
@@ -514,6 +499,9 @@ def getMessages():
 
         # Look for firm name
         firm = getFirm(msg)
+
+        # Look for analyst name
+        analyst = getAnalyst(msg)
 
         # Check if email only contains one event (one ticker)
         isSingle, vals = getSingle(msg)
@@ -531,16 +519,77 @@ def getMessages():
 
             # If type recognized, write event to database
             else:
-                event = [date, firm, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]]
+                event = [date, firm, vals[0], vals[1], vals[2], vals[3], vals[4], analyst]
                 processEvent(event)
 
         # If more than one event, print following
         else:
-            print '------------------------------'
-            print '        NEW MESSAGE           '
-            print '------------------------------'
-            print 'Can\'t process more than one msg'
-            print ''
+
+            # Get index of first bullet, otherwise quit
+            try:
+                ix = msg.index('*')
+                anotherBullet = True
+            except:
+                anotherBullet = False
+
+            # Loop through multiple messages
+            while anotherBullet:
+
+                # Get index of next bullet if possible
+                try:
+                    nextix = msg[ix+1:].index('*')
+
+                    # If next bullet immediately follows, this is the real bullet
+                    # E.g. Don't want the "Upgrade" bullet, want actual msg bullet
+                    if (nextix < 5):
+                        ix += (nextix + 1)
+
+                    # Again get index of next bullet
+                    try:
+                        nextix = msg[ix+1:].index('*')
+
+                        # Current msg is until next bullet
+                        currentMsg = msg[(ix+1):(ix+nextix+1)]
+
+                    # If no more bullets, current msg is until end of msg
+                    except:
+                        currentMsg = msg[ix+1:]
+                        anotherBullet = False
+
+                # If no more bullets, current msg is until end of msg
+                except:
+                    currentMsg = msg[ix+1:]
+                    anotherBullet = False
+
+                # If bullet is followed immediately by "Analyst", continue (i.e. exit)
+                if (msg[ix+1] == 'Analyst'): continue
+
+                # Get index of '('
+                indx = currentMsg.index('(')
+
+                # Ticker follows '('
+                ticker = currentMsg[indx+1]
+
+                # Get msg type and rating
+                msgtype_recognized, msgtype, rating = getMsgType(currentMsg)
+
+                # Get PT and curr
+                PT, curr = getPT(currentMsg, typ='multiple')
+
+                # Increment bullet index to next bullet
+                ix += (nextix + 1)
+
+                # If msgtype not recognized print out 
+                if not msgtype_recognized:
+                    print '------------------------------'
+                    print '        NEW MESSAGE           '
+                    print '------------------------------'
+                    print ' Can\'t process message type  '
+                    print ''
+                    continue
+
+                event = [date, firm, ticker, msgtype, rating, PT, curr, analyst]
+                processEvent(event)
 
     # Login to gmail and get mail object
     mail = emailLogin()
