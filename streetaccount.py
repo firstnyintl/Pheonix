@@ -307,6 +307,7 @@ def getMessages():
             if "Target" in msg: ix = msg.index('Target')
             elif 'target' in msg: ix = msg.index('target')
             else: return '',''
+
         # Look for occurrence of ')' if not single message
         else:
             if ')' in msg: ix = msg.index(')')
@@ -403,7 +404,9 @@ def getMessages():
                     # Return single-word rating
                     rating = msg[ix+2]
 
-        return msgtype_recognized, msgtype, rating
+        if msgtype_recognized:
+            return msgtype_recognized, msgtype, rating
+        else: return msgtype_recognized, None, None
 
 
     def getSingle(msg):
@@ -490,6 +493,166 @@ def getMessages():
         # More than one event in msg
         return False, None
 
+    def getMultiple(msg, date, firm, analyst):
+        """
+        Process core with multiple events, will return generator of lists:
+        List looks like this [ticker, msgtype, rating, PT, curr, analyst]
+        """
+        # Get index of first bullet, otherwise quit
+        try:
+            ix = msg.index('*')
+            anotherBullet = True
+        except:
+            anotherBullet = False
+
+        # Loop through multiple messages
+        while anotherBullet:
+
+            # Get index of next bullet if possible
+            try:
+                nextix = msg[ix+1:].index('*')
+
+                # If next bullet immediately follows, this is the real bullet
+                # E.g. Don't want the "Upgrade" bullet, want actual msg bullet
+                if (nextix < 5):
+                    ix += (nextix + 1)
+
+                # Again get index of next bullet
+                try:
+                    nextix = msg[ix+1:].index('*')
+
+                    # Current msg is until next bullet
+                    currentMsg = msg[(ix+1):(ix+nextix+1)]
+
+                # If no more bullets, current msg is until end of msg
+                except:
+                    currentMsg = msg[ix+1:]
+                    anotherBullet = False
+
+            # If no more bullets, current msg is until end of msg
+            except:
+                currentMsg = msg[ix+1:]
+                anotherBullet = False
+
+            # If bullet is followed immediately by "Analyst", continue (i.e. exit)
+            if (msg[ix+1] == 'Analyst'): continue
+
+            # Get index of '('
+            indx = currentMsg.index('(')
+
+            # Ticker follows '('
+            ticker = currentMsg[indx+1]
+
+            # Get msg type and rating
+            msgtype_recognized, msgtype, rating = getMsgType(currentMsg)
+
+            # Get PT and curr
+            PT, curr = getPT(currentMsg, typ='multiple')
+
+            # Increment bullet index to next bullet
+            ix += (nextix + 1)
+
+            # If msgtype not recognized print out 
+            if not msgtype_recognized:
+                print '------------------------------'
+                print '        NEW MESSAGE           '
+                print '------------------------------'
+                print ' Can\'t process message type  '
+                print ''
+                continue
+
+            yield [date, firm, ticker, msgtype, rating, PT, curr, analyst]
+
+    def getNotable(msg, date):
+        """
+        Get messages for email with "Other notable research", will return generator of events
+        List looks like this [ticker, msgtype, rating, PT, curr, analyst]
+        """
+        # Look for first bullet (before first '(')
+        ix = msg.index('(')
+
+        # Loop back from '(' until first bullet found, get index
+        while msg[ix] != '*': ix -= 1
+
+        anotherBullet = True
+
+        while anotherBullet:
+
+            # Get index of next bullet if possible
+            try:
+                nextix = msg[ix+1:].index('*')
+
+                # Current msg is until next bullet
+                currentMsg = msg[(ix+1):(ix+nextix+1)]
+
+            except:
+                anotherBullet = False
+
+                # Current msg is until end of msg
+                currentMsg = msg[ix+1:]
+
+            # Check if current message contains PT, if so continue to next bullet
+            if ('target' in currentMsg) or ('Target' in currentMsg): continue
+
+            # Check if current message contains PT, if so continue to next bullet
+            if ('analyst' in currentMsg) or ('Analyst' in currentMsg): continue
+
+            # Get index of '('
+            indx = currentMsg.index('(')
+
+            # Ticker follows '('
+            ticker = currentMsg[indx+1]
+
+            # Get message type and rating
+            msgtype_recognized, msgtype, rating = getMsgType(currentMsg)
+
+            # Assume no PT / currency / analyst
+            PT = ''
+            curr = ''
+            analyst = ''
+
+            # Get firm
+            firm = getFirm(currentMsg)
+
+            # Check if followed by price target
+            if anotherBullet:
+                try:
+                    tgtix = msg[ix+nextix+2:].index('*')
+
+                    # Next msg is until next bullet
+                    nextMsg = msg[(ix+nextix+2):(ix+nextix+tgtix+2)]
+
+                except:
+                    # Next msg is until end of msg
+                    nextMsg = msg[(ix+nextix+2):]
+
+                # If next message contains target
+                if ('Target' in nextMsg) or ('target' in nextMsg):
+
+                    # Get PT and curr
+                    PT, curr = getPT(nextMsg)
+
+                # If next message contains analyst
+                if ('Analyst' in nextMsg) or ('analyst' in nextMsg):
+
+                    # Get analyst name
+                    analyst = getAnalyst(nextMsg)
+
+            # Increment bullet index to next bullet
+            ix += (nextix + 1)
+
+            # If msgtype not recognized print out 
+            if not msgtype_recognized:
+                print '------------------------------'
+                print '        NEW MESSAGE           '
+                print '------------------------------'
+                print ' Can\'t process message type  '
+                print ''
+                continue
+
+            yield [date, firm, ticker, msgtype, rating, PT, curr, analyst]
+
+
     def processMsg(msg):
         """
         Process message, if successful, write to database, if not print why
@@ -497,99 +660,42 @@ def getMessages():
         # Look for date
         date = getDate(msg)
 
-        # Look for firm name
-        firm = getFirm(msg)
+        # Check to see if "Other notable research calls"
+        if msg[6] == 'notable':
+            events = getNotable(msg, date)
+            for e in events: processEvent(e)
 
-        # Look for analyst name
-        analyst = getAnalyst(msg)
-
-        # Check if email only contains one event (one ticker)
-        isSingle, vals = getSingle(msg)
-
-        # If contains only one event
-        if isSingle:
-
-            # If doesn't recognize type print following
-            if vals is None:
-                print '------------------------------'
-                print '        NEW MESSAGE           '
-                print '------------------------------'
-                print ' Can\'t process message type  '
-                print ''
-
-            # If type recognized, write event to database
-            else:
-                event = [date, firm, vals[0], vals[1], vals[2], vals[3], vals[4], analyst]
-                processEvent(event)
-
-        # If more than one event, print following
+        # If not "Other notable research calls"
         else:
+            # Look for firm name
+            firm = getFirm(msg)
 
-            # Get index of first bullet, otherwise quit
-            try:
-                ix = msg.index('*')
-                anotherBullet = True
-            except:
-                anotherBullet = False
+            # Look for analyst name
+            analyst = getAnalyst(msg)
 
-            # Loop through multiple messages
-            while anotherBullet:
+            # Check if email only contains one event (one ticker)
+            isSingle, vals = getSingle(msg)
 
-                # Get index of next bullet if possible
-                try:
-                    nextix = msg[ix+1:].index('*')
+            # If contains only one event
+            if isSingle:
 
-                    # If next bullet immediately follows, this is the real bullet
-                    # E.g. Don't want the "Upgrade" bullet, want actual msg bullet
-                    if (nextix < 5):
-                        ix += (nextix + 1)
-
-                    # Again get index of next bullet
-                    try:
-                        nextix = msg[ix+1:].index('*')
-
-                        # Current msg is until next bullet
-                        currentMsg = msg[(ix+1):(ix+nextix+1)]
-
-                    # If no more bullets, current msg is until end of msg
-                    except:
-                        currentMsg = msg[ix+1:]
-                        anotherBullet = False
-
-                # If no more bullets, current msg is until end of msg
-                except:
-                    currentMsg = msg[ix+1:]
-                    anotherBullet = False
-
-                # If bullet is followed immediately by "Analyst", continue (i.e. exit)
-                if (msg[ix+1] == 'Analyst'): continue
-
-                # Get index of '('
-                indx = currentMsg.index('(')
-
-                # Ticker follows '('
-                ticker = currentMsg[indx+1]
-
-                # Get msg type and rating
-                msgtype_recognized, msgtype, rating = getMsgType(currentMsg)
-
-                # Get PT and curr
-                PT, curr = getPT(currentMsg, typ='multiple')
-
-                # Increment bullet index to next bullet
-                ix += (nextix + 1)
-
-                # If msgtype not recognized print out 
-                if not msgtype_recognized:
+                # If doesn't recognize type print following
+                if vals is None:
                     print '------------------------------'
                     print '        NEW MESSAGE           '
                     print '------------------------------'
                     print ' Can\'t process message type  '
                     print ''
-                    continue
 
-                event = [date, firm, ticker, msgtype, rating, PT, curr, analyst]
-                processEvent(event)
+                # If type recognized, write event to database
+                else:
+                    event = [date, firm, vals[0], vals[1], vals[2], vals[3], vals[4], analyst]
+                    processEvent(event)
+
+            # If more than one event, print following
+            else:
+                events = getMultiple(msg, date, firm, analyst)
+                for e in events: processEvent(e)
 
     # Login to gmail and get mail object
     mail = emailLogin()
