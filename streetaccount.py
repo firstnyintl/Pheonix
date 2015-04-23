@@ -17,24 +17,184 @@ def processEvent(event):
     """
     Takes incoming event, calculates additional fields, writes Event to Database, updates ratings
     """
+
+    # Disperse event
+    firm = event[1]
+    ticker = event[2]
+    newRating = event[4]
+    newPT = event[5]
+    newAnalyst = event[7]
+
     # Load database file
     store = HDFStore(DB)
+
+    # Database ratings path
+    ratings_path = 'ratings/ratings'
 
     # Database events path
     events_path = 'ratings/SAEvents'
 
-    # Read event table
-    df = store[events_path]
+    # Account for file existing/not existing
+    try:
+        # Generate index (increment largest existing index)
+        index = store[events_path].index.max() + 1
+        eventsExists = True
+    except:
+        index = 100000000
+        eventsExists = False
+
+    # Account for file existing / not existing
+    try:
+        # Read ratings table
+        ratings = store[ratings_path]
+        lastRatingIndex = ratings.index.max()
+        ratingsExists = True
+    except:
+        ratingsExists = False
+
+    # Initialize additional variables
+    analystChange = False
+    ptQuartile = ''
+    streetHigh = False
+    streetLow = False
+
+    # If ratings file exists
+    if ratingsExists:
+        # Check if theres a PT in the message
+        if newPT:
+            ptlist = ratings.loc[ratings.Ticker == ticker].PT.values
+            ptlist = ptlist[np.where(ptlist != '')[0]].astype(np.float)
+
+            # If more than one PT available
+            if len(ptlist) > 1:
+                pdb.set_trace()
+
+                # Calculate PT quartile
+                high = np.max(ptlist)
+                rng = np.ptp(ptlist)
+                q = rng / 4.
+                if newPT > high - q: ptQuartile = 4
+                elif newPT > high - q * 2: ptQuartile = 3
+                elif newPT > high - q * 3: ptQuartile = 2
+                else: ptQuartile = 1
+
+                # Check if street high
+                if newPT > np.max(ptlist): streetHigh = True
+                if newPT < np.min(ptlist): streetLow = True
+
+        # If firm+ticker entry exists
+        if not ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm)].empty:
+
+            # UPDATE / CHECK ANALYST
+
+            # Get analyst field
+            oldAnalyst = ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'Analyst'].values[0]
+
+            # If analyst fields not empty and different
+            if (oldAnalyst and newAnalyst) and (oldAnalyst != newAnalyst):
+                pdb.set_trace()
+
+                # Set analyst change to true
+                analystChange = True
+
+                # Update analyst
+                ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'Analyst'] = newAnalyst
+
+            # If no analyst currently in ratings DB, update field
+            if not oldAnalyst:
+                ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'Analyst'] = newAnalyst
+
+            # UPDATE / CHECK Rating
+
+            # Get rating field
+            oldRating = ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'Rating'].values[0]
+
+            # If rating fields not empty and different
+            if (oldRating and newRating) and (oldRating != newRating):
+                pdb.set_trace()
+                # Update rating
+                ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'Rating'] = newRating
+
+            # If no rating currently in ratings DB, update field
+            if not oldRating:
+                ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'Rating'] = newRating
+
+            # UPDATE / CHECK PT
+
+            # Get rating field
+            oldPT = ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'PT'].values[0]
+
+            # If PT fields not empty and different
+            if (oldPT and newPT) and (float(oldPT) != float(newPT)):
+
+                pdb.set_trace()
+
+                # Update PT
+                ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'PT'] = str(newPT)
+
+            # If no PT currently in ratings DB, update field
+            if not oldPT:
+                ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'PT'] = str(newPT)
+
+            # UPDATE LAST MSG ID
+            ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'lastUpdateID'] = str(index)
+
+        # If can't find entry for firm/ticker
+        else:
+            ratings.ix[lastRatingIndex+1] = [ticker, firm, newRating, str(newPT), newAnalyst, str(index)]
+
+        # Store updated row
+        store.put(ratings_path, ratings, min_itemsize=50, format='table', data_columns=True)
+        print ""
+        print "------------------"
+        print ' Ratings updated'
+        print "------------------"
+        print ""
+
+    # If file doesn't exist
+    else:
+        columns = ['Ticker', 'Firm', 'Rating', 'PT', 'Analyst', 'lastUpdateID']
+        df = DataFrame([[ticker, firm, newRating, str(newPT), newAnalyst, str(index)]], columns=columns, index=[1000000])
+        store.put(ratings_path, df, min_itemsize=50, format='table', data_columns=True)
+        print ""
+        print "-------------------------------------"
+        print ' Ratings file created & Initialized'
+        print "-------------------------------------"
+        print ""
+
+       
+    # Add new variables to event
+    event.append(analystChange)
+    event.append(ptQuartile)
+    event.append(streetHigh)
+    event.append(streetLow)
 
     # Convert Event to Strings
     event = [str(i) for i in event]
 
-    # Generate index (increment largest existing index)
-    index = df.index.max() + 1
+    print '------------------------------'
+    print '        NEW MESSAGE           '
+    print '------------------------------'
+    print 'Date: ' + event[0]
+    print 'Firm: ' + event[1]
+    print 'Ticker: ' + event[2]
+    print 'Type: ' + event[3]
+    print 'Rating: ' + event[4]
+    print 'PT: ' + event[5]
+    print 'FX: ' + event[6]
+    print 'Analyst: ' + event[7]
+    print 'newAnalyst: ' + event[8]
+    print 'PT Quartile: ' + event[9]
+    print 'Street High: ' + event[10]
+    print 'Street Low: ' + event[11]
+    print ''
 
-    # Create DataFrame of event
-    msg = DataFrame([event], columns=df.columns, index=[index])
-    # msg = DataFrame([event], columns=['Date', 'Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst'], index=[100000000])
+    # If event file exists
+    if eventsExists:
+        msg = DataFrame([event], columns=store[events_path].columns, index=[index])
+    # If doesn't exist
+    else:
+        msg = DataFrame([event], columns=['Date', 'Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst', 'newAnalyst', 'PTQuartile', 'streetH', 'streetL'], index=[index])
 
     # Add event to event table
     store.append(events_path, msg, min_itemsize=200, format='table', data_columns=True)
@@ -45,37 +205,12 @@ def processEvent(event):
     global n
     n += 1
 
+    print ''
+    print '-------------------'
     print "Processed " + str(n)
+    print '-------------------'
+    print ''
 
-    # print '------------------------------'
-    # print '        NEW MESSAGE           '
-    # print '------------------------------'
-    # print 'Date: ' + event[0]
-    # print 'Firm: ' + event[1]
-    # print 'Ticker: ' + event[2]
-    # print 'Type: ' + event[3]
-    # print 'Rating: ' + event[4]
-    # print 'PT: ' + event[5]
-    # print 'FX: ' + event[6]
-    # print 'Analyst: ' + event[7]
-    # print ''
-
-    def quartile(self):
-        """
-        Returns which quartile the new price target falls under
-        """
-        ptlist = self.BBGData[self.BBGData['Target Price'] > 0]['Target Price'].values
-        high = np.max(ptlist)
-        rng = np.ptp(ptlist)
-        q = rng / 4.
-        if self.PT > high - q:
-            return 4
-        elif self.PT > high - q * 2:
-            return 3
-        elif self.PT > high - q * 3:
-            return 2
-        else:
-            return 1
 
     # def changeLongTime(self):
     #     """
@@ -121,10 +256,10 @@ def getMessages():
 
     def getLastMsgCore(y, mail):
         """
-        Pulls the first unread email and returns a processed core tokenized message
+        Pulls the last unread email and returns a processed core tokenized message
         """
         # Get number of unread emails
-        latest_email_uid = y[0].split()[-1]
+        latest_email_uid = y[0].split()[0]
         result, data = mail.uid('fetch', latest_email_uid, "(RFC822)")
         raw_email = data[0][1]
 
@@ -178,11 +313,6 @@ def getMessages():
         """
         Cross reference with firm database and return firm name, if nothing found add firm to database
         """
-        # Database path to fim list
-        path = 'ratings/firms'
-
-        # Get firm list
-        firms = read_hdf(DB, path)
 
         # If in multiple event message, find firm in beginning
         if typ == 'multiple':
