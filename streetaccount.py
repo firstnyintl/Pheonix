@@ -10,6 +10,8 @@ import pdb
 # Database file
 DB = 'DB.h5'
 
+n = 0
+
 
 def processEvent(event):
     """
@@ -35,23 +37,28 @@ def processEvent(event):
     # msg = DataFrame([event], columns=['Date', 'Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst'], index=[100000000])
 
     # Add event to event table
-    store.append(events_path, msg, min_itemsize=50, format='table', data_columns=True)
+    store.append(events_path, msg, min_itemsize=200, format='table', data_columns=True)
 
     # End database access
     store.close()
 
-    print '------------------------------'
-    print '        NEW MESSAGE           '
-    print '------------------------------'
-    print 'Date: ' + event[0]
-    print 'Firm: ' + event[1]
-    print 'Ticker: ' + event[2]
-    print 'Type: ' + event[3]
-    print 'Rating: ' + event[4]
-    print 'PT: ' + event[5]
-    print 'FX: ' + event[6]
-    print 'Analyst: ' + event[7]
-    print ''
+    global n
+    n += 1
+
+    print "Processed " + str(n)
+
+    # print '------------------------------'
+    # print '        NEW MESSAGE           '
+    # print '------------------------------'
+    # print 'Date: ' + event[0]
+    # print 'Firm: ' + event[1]
+    # print 'Ticker: ' + event[2]
+    # print 'Type: ' + event[3]
+    # print 'Rating: ' + event[4]
+    # print 'PT: ' + event[5]
+    # print 'FX: ' + event[6]
+    # print 'Analyst: ' + event[7]
+    # print ''
 
     def quartile(self):
         """
@@ -89,7 +96,7 @@ def processEvent(event):
         return shrtInt > 5
 
 
-def addFirm(firmname, identifier):
+def addFirm(name):
     """
     Add firm name and unique identifier to DataBase
     """
@@ -107,7 +114,8 @@ def addFirm(firmname, identifier):
     index = df.index.max() + 1
 
     # Create DataFrame of event
-    msg = DataFrame([[firmname, identifier]], columns=df.columns, index=[index])
+    msg = DataFrame([[name]], columns=df.columns, index=[index])
+    # msg = DataFrame([[name]], columns=['Firm'], index=[1000000])
 
     # Add event to event table
     store.append(path, msg, min_itemsize=50, format='table', data_columns=True)
@@ -158,6 +166,9 @@ def getMessages():
         block = block.split('StreetAccount')[1:3]
         block = "".join(block)
 
+        # Get rid of potential "Reference Link in footer"
+        block = block.split('Reference Link')[0]
+
         # Get rid of =, /r, /n
         block = block.translate(None, '=\r\\')
         block = block.translate(None, '\n')
@@ -191,26 +202,71 @@ def getMessages():
         date = datetime.datetime.strptime(dt, '%m/%d/%y %H:%M')
         return date
 
-    def getFirm(msg):
+    def getFirm(msg, typ='single'):
         """
         Cross reference with firm database and return firm name, if nothing found add firm to database
         """
+        pdb.set_trace()
         # Database path to fim list
         path = 'ratings/firms'
 
         # Get firm list
         firms = read_hdf(DB, path)
 
-        # Search whether message contains any firm identifier
-        firms['eval'] = firms['Identifier'].isin(msg)
+        # If in multiple event message, find firm in beginning
+        if typ == 'multiple':
+            multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes', 'raises', 'lowers', 'initiates', 'initiates/resumes']
+            ix = 10000
 
-        # If identifier found in database, return firm name
-        try:
-            return firms[firms['eval']].Firm.values[0]
+            # Look for token, assign index
+            for token in multiple_msg_tokens:
+                try:
+                    if (msg.index(token) < ix): ix = msg.index(token)
+                except: pass
 
-        # If identifier not found, return empty string
-        except:
-            return ''
+            st = ix
+            while (st > 0):
+                st -= 1
+                if msg[st] == ';' or msg[st] == ':':
+                    if (ix-st == 1): continue
+                    else: break
+                if msg[st] == ']': break
+
+            if ix != 0: name = ' '.join(msg[st+1:ix])
+            else: name = ''
+
+        # If single message / in "notable"
+        else:
+            # Look for 'at'
+            ix = msg.index('at')
+
+            # Look for '(' or '--' or '*' or ';', whichever comes first after 'at'
+            try: ix1 = msg[ix+1:].index('(')
+            except: ix1 = 10000
+            try: ix2 = msg[ix+1:].index('--')
+            except: ix2 = 10000
+            try: ix3 = msg[ix+1:].index('*')
+            except: ix3 = 10000
+            try: ix4 = msg[ix+1:].index(';')
+            except: ix4 = 10000
+
+            end = min(ix1, ix2, ix3, ix4)
+            sub = msg[ix+1:ix+1+end]
+
+            # Get rid of "we're told"
+            try:
+                sub = sub[:sub.index("'re")-2]
+            except:
+                pass
+
+            # Get firm name
+            name = ' '.join(sub)
+
+        # Check whether firm exists, if not add
+        if name in firms['Firm'].unique(): return name
+        else:
+            addFirm(name)
+            return name
 
     def getAnalyst(msg):
         """
@@ -271,6 +327,9 @@ def getMessages():
                 # If 'A' precedes $, return 'AUD'
                 if msg[PTix-2] == 'A': return 'AUD'
 
+                # If 'HK' preceds $, return 'HKD'
+                if msg[PTix-2] == 'HK': return 'HKD'
+
                 # If nothing precedes $, return 'USD'
                 else: return 'USD'
 
@@ -283,14 +342,21 @@ def getMessages():
             # Seperate non digits from PT field
             curr = ''.join(i for i in msg[PTix] if not i.isdigit())
 
-            # Get rid of potential "." left in string (e.g. '.SEK')
+            # Get rid of potential "." and "," left in string (e.g. '.SEK')
             curr = curr.replace('.', '')
+            curr = curr.replace(',', '')
 
-            # If 'p' is identifier, return 'GBP' (e.g. '257p')
-            if 'p' in curr: return 'GBP'
+            # If curr = 'R', return 'ZAR'
+            if curr == 'R': return 'ZAR'
+
+            # If 'p' or '\xa3' is identifier, return 'GBP' (e.g. '257p')
+            if ('p' in curr) or ('\xa3' in curr): return 'GBP'
 
             # If '\x80' (Euro symbol) is identifier, return 'EUR' (e.g. '\x80270')
             if '\x80' in curr: return 'EUR'
+
+            # If '\xa5' (Yen symbol) is identifier, return 'JPY'
+            if '\xa5' in curr: return 'JPY'
 
             # If not 'GBP' or 'EUR', return extracted string (e.g. 'NOK', 'SEK', 'TWD')
             return curr
@@ -299,8 +365,9 @@ def getMessages():
         """
         Get price target from message and return
         Behaves differently given whether single or multiple messages
-        ---If 'single' will look for target after occurrence of 'Target'
-        ---If 'multiple' will look for target after occurrence of ')'
+
+        -- If 'single' will look for target after occurrence of 'Target'
+        -- If 'multiple' will look for target after occurrence of ')'
         """
         # Look for occurrence of 'target' if single message
         if typ == 'single':
@@ -312,6 +379,9 @@ def getMessages():
         else:
             if ')' in msg: ix = msg.index(')')
             else: return '',''
+
+        # If valuation range, return empty strings
+        if 'range' in msg: return '',''
 
         # Loop through message after occurrence of "target"/"Target" until PT found
         for i, x in enumerate(msg[ix:]):
@@ -420,12 +490,17 @@ def getMessages():
         Will return "True, None" if message type not recognized
         Will return "False, None" if more than one event in message
         """
-
         # If msg contains any of the following, there are multiple events per message
         multiple_msg_tokens = ['upgrades', 'downgrades', 'initiates', 'resumes', 'reinstates', 'assumes', 'notable']
 
+        # Look for header (before first bullet)
+        try:
+            header = msg[:msg.index('*')]
+        except:
+            header = msg
+
         # If no value in multiple_msg_tokens found in msg, assume single event
-        if not any([e in msg for e in multiple_msg_tokens]):
+        if not any([e in header for e in multiple_msg_tokens]):
 
             # Get ticker by looking at standard index in message
             SINGLE_MESSAGE_TICKER_INDEX = 5
@@ -456,6 +531,12 @@ def getMessages():
                     # Set rating to empty string
                     rating = ''
 
+                    # Get firm
+                    if msg[ix+1] == 'increased':
+                        firm = getFirm(msg)
+                    else:
+                        firm = getFirm(msg, typ='multiple')
+
                 # If followed by 'decreased' or 'lowers'
                 elif msg[ix+1] == 'decreased' or msg[ix-1] == 'lowers':
 
@@ -468,12 +549,18 @@ def getMessages():
                     # Set rating to empty string
                     rating = ''
 
+                    # Get firm
+                    if msg[ix+1] == 'decreased':
+                        firm = getFirm(msg)
+                    else:
+                        firm = getFirm(msg, typ='multiple')
+
                 # If not followed by one of the above, msg type not understood
                 else:
                     return True, None
 
                 # Return True for single event, return values
-                return True, [ticker, msgtype, rating, PT, curr]
+                return True, [firm, ticker, msgtype, rating, PT, curr]
 
             # If not PT change, check for other msg types 
             else:
@@ -487,17 +574,23 @@ def getMessages():
                 # Get Price Target and currency
                 PT, curr = getPT(msg)
 
+                # Get firm
+                firm = getFirm(msg)
+
                 # Return True and values
-                return True, [ticker, msgtype, rating, PT, curr]
+                return True, [firm, ticker, msgtype, rating, PT, curr]
 
         # More than one event in msg
         return False, None
 
-    def getMultiple(msg, date, firm, analyst):
+    def getMultiple(msg, date, analyst):
         """
         Process core with multiple events, will return generator of lists:
         List looks like this [ticker, msgtype, rating, PT, curr, analyst]
         """
+        # Get firm
+        firm = getFirm(msg, typ='multiple')
+
         # Get index of first bullet, otherwise quit
         try:
             ix = msg.index('*')
@@ -534,11 +627,14 @@ def getMessages():
                 currentMsg = msg[ix+1:]
                 anotherBullet = False
 
-            # If bullet is followed immediately by "Analyst", continue (i.e. exit)
-            if (msg[ix+1] == 'Analyst'): continue
+            # If bullet is followed immediately by "Analyst", exit
+            if (msg[ix+1] == 'Analyst'): break
 
-            # Get index of '('
-            indx = currentMsg.index('(')
+            # Get index of '(', if not found, move to next bullet
+            try: indx = currentMsg.index('(')
+            except:
+                ix += (nextix + 1)
+                continue
 
             # Ticker follows '('
             ticker = currentMsg[indx+1]
@@ -592,13 +688,20 @@ def getMessages():
                 currentMsg = msg[ix+1:]
 
             # Check if current message contains PT, if so continue to next bullet
-            if ('target' in currentMsg) or ('Target' in currentMsg): continue
+            if ('target' in currentMsg) or ('Target' in currentMsg):
+                ix += (nextix + 1)
+                continue
 
             # Check if current message contains PT, if so continue to next bullet
-            if ('analyst' in currentMsg) or ('Analyst' in currentMsg): continue
+            if ('analyst' in currentMsg) or ('Analyst' in currentMsg):
+                ix += (nextix + 1)
+                continue
 
-            # Get index of '('
-            indx = currentMsg.index('(')
+            # Get index of '(', if not found, move to next bullet
+            try: indx = currentMsg.index('(')
+            except:
+                ix += (nextix + 1)
+                continue
 
             # Ticker follows '('
             ticker = currentMsg[indx+1]
@@ -652,7 +755,6 @@ def getMessages():
 
             yield [date, firm, ticker, msgtype, rating, PT, curr, analyst]
 
-
     def processMsg(msg):
         """
         Process message, if successful, write to database, if not print why
@@ -667,8 +769,6 @@ def getMessages():
 
         # If not "Other notable research calls"
         else:
-            # Look for firm name
-            firm = getFirm(msg)
 
             # Look for analyst name
             analyst = getAnalyst(msg)
@@ -689,12 +789,12 @@ def getMessages():
 
                 # If type recognized, write event to database
                 else:
-                    event = [date, firm, vals[0], vals[1], vals[2], vals[3], vals[4], analyst]
+                    event = [date, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], analyst]
                     processEvent(event)
 
             # If more than one event, print following
             else:
-                events = getMultiple(msg, date, firm, analyst)
+                events = getMultiple(msg, date, analyst)
                 for e in events: processEvent(e)
 
     # Login to gmail and get mail object

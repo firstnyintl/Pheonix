@@ -1,3 +1,7 @@
 test.py~
 *.pyc
 test.py
+DB.h5
+*.h5
+*.profile
+*.h5
