@@ -178,7 +178,6 @@ def getMessages():
         """
         Cross reference with firm database and return firm name, if nothing found add firm to database
         """
-        pdb.set_trace()
         # Database path to fim list
         path = 'ratings/firms'
 
@@ -598,11 +597,13 @@ def getMessages():
             # If bullet is followed immediately by "Analyst", exit
             if (msg[ix+1] == 'Analyst'): break
 
-            # Get index of '(', if not found, move to next bullet
+            # Get index of '(', if not found, move to next bullet / exit
             try: indx = currentMsg.index('(')
             except:
-                ix += (nextix + 1)
-                continue
+                if not anotherBullet: continue
+                else:
+                    ix += (nextix + 1)
+                    continue
 
             # Ticker follows '('
             ticker = currentMsg[indx+1]
@@ -634,6 +635,10 @@ def getMessages():
         """
         # Look for first bullet (before first '(')
         ix = msg.index('(')
+
+        # If followed by (pre-open), look for next '('
+        if msg[ix+1] == 'pre-open':
+            ix += msg[ix+1:].index('(') + 1
 
         # Loop back from '(' until first bullet found, get index
         while msg[ix] != '*': ix -= 1
