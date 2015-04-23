@@ -96,34 +96,6 @@ def processEvent(event):
         return shrtInt > 5
 
 
-def addFirm(name):
-    """
-    Add firm name and unique identifier to DataBase
-    """
-
-    # Load database file
-    store = HDFStore(DB)
-
-    # Database path
-    path = 'ratings/firms'
-
-    # Read event table
-    df = store[path]
-
-    # Generate index (increment largest existing index)
-    index = df.index.max() + 1
-
-    # Create DataFrame of event
-    msg = DataFrame([[name]], columns=df.columns, index=[index])
-    # msg = DataFrame([[name]], columns=['Firm'], index=[1000000])
-
-    # Add event to event table
-    store.append(path, msg, min_itemsize=50, format='table', data_columns=True)
-
-    # End database access
-    store.close()
-
-
 def getMessages():
     """
     Log into email, process unread emails, process events from emails, write events to database
@@ -262,11 +234,7 @@ def getMessages():
             # Get firm name
             name = ' '.join(sub)
 
-        # Check whether firm exists, if not add
-        if name in firms['Firm'].unique(): return name
-        else:
-            addFirm(name)
-            return name
+        return name
 
     def getAnalyst(msg):
         """
