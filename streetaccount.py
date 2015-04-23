@@ -67,7 +67,6 @@ def processEvent(event):
 
             # If more than one PT available
             if len(ptlist) > 1:
-                pdb.set_trace()
 
                 # Calculate PT quartile
                 high = np.max(ptlist)
@@ -92,7 +91,6 @@ def processEvent(event):
 
             # If analyst fields not empty and different
             if (oldAnalyst and newAnalyst) and (oldAnalyst != newAnalyst):
-                pdb.set_trace()
 
                 # Set analyst change to true
                 analystChange = True
@@ -111,7 +109,6 @@ def processEvent(event):
 
             # If rating fields not empty and different
             if (oldRating and newRating) and (oldRating != newRating):
-                pdb.set_trace()
                 # Update rating
                 ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'Rating'] = newRating
 
@@ -126,8 +123,6 @@ def processEvent(event):
 
             # If PT fields not empty and different
             if (oldPT and newPT) and (float(oldPT) != float(newPT)):
-
-                pdb.set_trace()
 
                 # Update PT
                 ratings.loc[(ratings.Ticker == ticker) & (ratings.Firm == firm), 'PT'] = str(newPT)
