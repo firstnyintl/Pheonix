@@ -2,7 +2,6 @@ import blpapi
 from optparse import OptionParser
 import pandas as pd
 import numpy as np
-import pdb
 
 
 def parseCmdLine():
@@ -49,7 +48,7 @@ def createSession():
     return session
 
 
-def getSingleField(security, field, securityType='Equity'):
+def getSingleField(security, field):
     """
     Returns DataFrame with securities and fields
     """
@@ -59,7 +58,7 @@ def getSingleField(security, field, securityType='Equity'):
     refDataService = session.getService("//blp/refdata")
     request = refDataService.createRequest("ReferenceDataRequest")
 
-    request.append('securities', security + ' ' + securityType)
+    request.append('securities', security)
     request.append("fields", field)
 
     session.sendRequest(request)
@@ -80,7 +79,7 @@ def getSingleField(security, field, securityType='Equity'):
         endSession(session)
 
 
-def getHistoricalFields(securities, fields, startDate, endDate, periodicity='DAILY', securityType='Equity'):
+def getHistoricalFields(securities, fields, startDate, endDate, periodicity='DAILY'):
     """
     Returns DataFrame with securities and fields
     """
@@ -102,7 +101,7 @@ def getHistoricalFields(securities, fields, startDate, endDate, periodicity='DAI
         fields = pd.Series(fields)
 
     for security in securities:
-        request.append("securities", security + ' ' + securityType)
+        request.append("securities", security)
     for field in fields:
         request.append("fields", field)
     request.set("startDate", startDate)
@@ -126,7 +125,7 @@ def getHistoricalFields(securities, fields, startDate, endDate, periodicity='DAI
                         fields = fieldData.getValue(field)
                         for n in range(1, fields.numElements()):
                             name = str(fields.getElement(n).name())
-                            output.ix[security.split(' ')[0]][name] = fields.getElement(n).getValue()
+                            output.ix[security][name] = fields.getElement(n).getValue()
                     filled.append(security)
             loop = not(len(filled) == len(output))
     finally:
@@ -134,7 +133,7 @@ def getHistoricalFields(securities, fields, startDate, endDate, periodicity='DAI
     return output
 
 
-def getFields(securities, fields, securityType='Equity'):
+def getFields(securities, fields):
     """
     Returns DataFrame with securities and fields
     """
@@ -156,7 +155,7 @@ def getFields(securities, fields, securityType='Equity'):
         fields = pd.Series(fields)
 
     for security in securities:
-        request.append("securities", security + ' ' + securityType)
+        request.append("securities", security)
     for field in fields:
         request.append("fields", field)
 
@@ -175,7 +174,7 @@ def getFields(securities, fields, securityType='Equity'):
                         security = securityData.getElementAsString(blpapi.Name("security"))
                         fieldData = securityData.getElement(blpapi.Name("fieldData"))
                         for field in fieldData.elements():
-                            output.ix[security.split(' ')[0]][str(field.name())] = field.getValue(0)
+                            output.ix[security][str(field.name())] = field.getValue(0)
                         filled.append(security)
             loop = not(len(filled) == len(output))
     finally:
@@ -183,7 +182,7 @@ def getFields(securities, fields, securityType='Equity'):
     return output
 
 
-def getFieldsOverride(securities, field, override_fields, override_values, securityType='Equity'):
+def getFieldsOverride(securities, field, override_fields, override_values):
     """
     Returns DataFrame with securities and fields
     """
@@ -201,7 +200,7 @@ def getFieldsOverride(securities, field, override_fields, override_values, secur
         securities = pd.Series(securities)
 
     for security in securities:
-        request.append("securities", security + ' ' + securityType)
+        request.append("securities", security)
     request.append("fields", field)
 
     overrides = request.getElement("overrides")
@@ -236,9 +235,9 @@ def getFieldsOverride(securities, field, override_fields, override_values, secur
                             except:
                                 fieldName = ""
                             if fieldName == "ADVERTISED_TOTAL_VOLUME_RANK":
-                                output.ix[security.split(' ')[0]][fieldName] = field.getValue(0).getElement(2).getValue()
+                                output.ix[security][fieldName] = field.getValue(0).getElement(2).getValue()
                             else:
-                                output.ix[security.split(' ')[0]][str(field.name())] = field.getValue(0)
+                                output.ix[security][str(field.name())] = field.getValue(0)
                         filled.append(security)
             loop = not(len(filled) == len(output))
     finally:

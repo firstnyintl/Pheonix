@@ -1,7 +1,7 @@
 import datetime
 import re
 import numpy as np
-from pandas import HDFStore, DataFrame, read_hdf
+from pandas import HDFStore, DataFrame
 import imaplib
 import email
 import nltk
@@ -157,7 +157,7 @@ def processEvent(event):
         print "-------------------------------------"
         print ""
 
-       
+
     # Add new variables to event
     event.append(analystChange)
     event.append(ptQuartile)
@@ -206,17 +206,6 @@ def processEvent(event):
     print '-------------------'
     print ''
 
-
-    # def changeLongTime(self):
-    #     """
-    #     calculated how long its been since the anayalts last peice and if that length of time is longer than 1 year, True is returned
-    #     """
-    #     today = self.date
-    #     numberofDays = (today - 'weird ass bloomberg date').days
-    #     if numberofDays > 360:
-    #         return True
-    #     else:
-    #         return False
 
     def shortInt(self):
         """
@@ -277,6 +266,9 @@ def getMessages():
 
         # Special case--wierd norweigan char
         block = block.replace('\xf8', 'o')
+
+        # Replace EUR
+        block = block.replace('\x80', 'EUR')
 
         # Tokenize using NLTK
         tokenized_block = nltk.word_tokenize(block)
