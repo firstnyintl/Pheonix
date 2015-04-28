@@ -125,7 +125,7 @@ def getHistoricalFields(securities, fields, startDate, endDate, periodicity='DAI
                         fields = fieldData.getValue(field)
                         for n in range(1, fields.numElements()):
                             name = str(fields.getElement(n).name())
-                            output.ix[security][name] = fields.getElement(n).getValue()
+                            output.loc[security][name] = fields.getElement(n).getValue()
                     filled.append(security)
             loop = not(len(filled) == len(output))
     finally:
@@ -174,7 +174,7 @@ def getFields(securities, fields):
                         security = securityData.getElementAsString(blpapi.Name("security"))
                         fieldData = securityData.getElement(blpapi.Name("fieldData"))
                         for field in fieldData.elements():
-                            output.ix[security][str(field.name())] = field.getValue(0)
+                            output.loc[security][str(field.name())] = field.getValue(0)
                         filled.append(security)
             loop = not(len(filled) == len(output))
     finally:
@@ -235,9 +235,9 @@ def getFieldsOverride(securities, field, override_fields, override_values):
                             except:
                                 fieldName = ""
                             if fieldName == "ADVERTISED_TOTAL_VOLUME_RANK":
-                                output.ix[security][fieldName] = field.getValue(0).getElement(2).getValue()
+                                output.loc[security][fieldName] = field.getValue(0).getElement(2).getValue()
                             else:
-                                output.ix[security][str(field.name())] = field.getValue(0)
+                                output.loc[security][str(field.name())] = field.getValue(0)
                         filled.append(security)
             loop = not(len(filled) == len(output))
     finally:
@@ -274,7 +274,7 @@ def getBulkAnalystRecs(stock):
                             for i, rating in enumerate(ratings):
                                 for element in rating.elements():
                                     fld = element.name().__str__()
-                                    output.ix[i][fld] = element.getValue()
+                                    output.loc[i][fld] = element.getValue()
                         return output
     finally:
         endSession(session)
