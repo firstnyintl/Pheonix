@@ -37,11 +37,21 @@ def getVWAPtimes(country="Japan"):
     Get VWAP start and end date parameters depending on country
     Returns:
     -- start, end       (strings)
+    be advised: Daylight savings needs to be acconuted for
     """
     if country == "Japan":
         return "20:00:00", "20:20:00"
-
-
+    if country == 'Hong Kong':
+        return "21:30:00", "22:00:00"
+    if country == 'Australia':
+        return '20:00:00', '21:00:00'
+    if country == 'Europe':
+        return '03:00:00', '06:30:00'
+    if country == 'United Kingdom':
+        return '03:00:00', '06:30:00'
+    if country == 'United States':
+        return '15:20:00', '15:59:30'
+    
 def getVWAP(securities, start, end, date):
     """
     Get vwap on given date, and given start time, for list of securities
