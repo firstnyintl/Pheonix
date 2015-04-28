@@ -1,6 +1,8 @@
 import pandas as pd
-from datetime import datetime, timedelta
+import pytz
+from datetime import datetime, time, date
 import BBG
+import pdb
 
 
 def getADRlist():
@@ -37,22 +39,63 @@ def getVWAPtimes(country="Japan"):
     Get VWAP start and end date parameters depending on country
     Returns:
     -- start, end       (strings)
-    be advised: Daylight savings needs to be acconuted for
     """
-    if country == "Japan":
-        return "20:00:00", "20:20:00"
-    if country == 'Hong Kong':
-        return "21:30:00", "22:00:00"
-    if country == 'Australia':
-        return '20:00:00', '21:00:00'
-    if country == 'Europe':
-        return '03:00:00', '06:30:00'
-    if country == 'United Kingdom':
-        return '03:00:00', '06:30:00'
-    if country == 'United States':
-        return '15:20:00', '15:59:30'
-    
-def getVWAP(securities, start, end, date):
+    reference = {
+        'Japan': {
+            'start': time(9, 0),
+            'end': time(9, 20),
+            'zone': 'Asia/Tokyo'
+            },
+        'Hong Kong': {
+            'start': time(9, 30),
+            'end': time(10, 00),
+            'zone': 'Asia/Hong_Kong'
+            },
+        'Australia': {
+            'start': time(9, 00),
+            'end': time(10, 00),
+            'zone': 'Australia/Sydney'
+            },
+        'Europe': {
+            'start': time(9, 00),
+            'end': time(11, 00),
+            'zone': 'Europe/Berlin'
+            },
+        'UK': {
+            'start': time(9, 00),
+            'end': time(11, 00),
+            'zone': 'Europe/London'
+            }
+        }
+
+    # Get today's date
+    today = date.today()
+
+    # Set local timezone
+    local_zone = pytz.timezone('America/New_York')
+
+    # Build datetimes
+    start = reference[country]['start']
+    start = datetime.combine(today, start)
+    end = reference[country]['end']
+    end = datetime.combine(today, end)
+
+    # Convert to correct timezone
+    timezone = pytz.timezone(reference[country]['zone'])
+    start = timezone.localize(start).astimezone(local_zone)
+    end = timezone.localize(end).astimezone(local_zone)
+
+    # Extract date and convert to BBG format
+    dt = start.date().strftime("%m/%d/%Y")
+
+    # Extract times and convert to BBG format
+    start = start.time().strftime("%H:%M:%S")
+    end = end.time().strftime("%H:%M:%S")
+
+    return start, end, dt
+
+
+def getVWAP(securities, start, end, dt):
     """
     Get vwap on given date, and given start time, for list of securities
     """
@@ -63,7 +106,7 @@ def getVWAP(securities, start, end, date):
     OVERRIDE_FIELDS = ['VWAP_START_TIME', 'VWAP_END_TIME', 'VWAP_DT']
 
     # VWAP override values
-    OVERRIDE_VALUES = [start, end, date]
+    OVERRIDE_VALUES = [start, end, dt]
 
     # Get Bloomberg VWAP data
     output = BBG.getFieldsOverride(securities, FIELDS, OVERRIDE_FIELDS, OVERRIDE_VALUES)
@@ -78,12 +121,12 @@ def yesterdayWorkingReport(bps=30):
     """
 
     def addORDVWAP(data):
-        # Get yesterday's timedate
-        yesterday = datetime.now() - timedelta(days=1)
-        # Convert to BBG format
-        yesterday = yesterday.strftime("%m/%d/%Y")
-        start, end = getVWAPtimes(country='Japan')
-        vwap = getVWAP(data.ORD, start, end, yesterday)
+
+        # Get start/end time and date parameters
+        start, end, dt = getVWAPtimes(country='Japan')
+
+        # Get VWAP data from BBG and add to DyataFrame
+        vwap = getVWAP(data.ORD, start, end, dt)
         output = data.join(vwap, on='ORD')
         return output
 
