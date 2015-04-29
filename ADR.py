@@ -125,9 +125,13 @@ def yesterdayWorkingReport(bps=30):
         # Get start/end time and date parameters
         start, end, dt = getVWAPtimes(country='Japan')
 
-        # Get VWAP data from BBG and add to DyataFrame
+        # Check whether exchange open
+        isOpen = BBG.isExchangeOpenByTickers(data.ORD, date.today())
+
+        # Get VWAP data from BBG and add to DataFrame
         vwap = getVWAP(data.ORD, start, end, dt)
         output = data.join(vwap, on='ORD')
+        output = output.join(isOpen, on='ORD')
         return output
 
     # Load ADRS
@@ -159,7 +163,13 @@ def yesterdayWorkingReport(bps=30):
     # Calculate adjusted spread
     data['Net Spread'] = ((data['ORD USD'] / data['Adj. Price']) - 1) * -100
 
+    pdb.set_trace()
+    # Show only where spread bigger than bps
     output = data[data['Net Spread'].abs() > bps/100.]
+
+    # Show only where markets open
+    output = output[output.isOpen]
+
     print output[['ADR', 'Net Spread']]
 
 if __name__ == '__main__':

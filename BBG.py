@@ -2,7 +2,8 @@ import blpapi
 from optparse import OptionParser
 import pandas as pd
 import numpy as np
-
+import pdb
+import datetime
 
 def parseCmdLine():
     parser = OptionParser(description="Retrieve realtime data.")
@@ -381,3 +382,68 @@ def RTmessageToPandas(message):
         output[name] = value
 
     return pd.Series(output)
+
+
+def getNonSettlementDates(CDRCode):
+    """
+    Returns Series of dates given 'CDR_COUNTRY_CODE'
+    """
+    session = createSession()
+    if not session.openService("//blp/refdata"):
+        print "Failed to open //blp/refdata"
+    refDataService = session.getService("//blp/refdata")
+    request = refDataService.createRequest("ReferenceDataRequest")
+
+    request.append('securities', 'USD Curncy')
+    request.append('fields', 'CALENDAR_NON_SETTLEMENT_DATES')
+
+    overrides = request.getElement("overrides")
+    override_fields = ['SETTLEMENT_CALENDAR_CODE', 'CALENDAR_START_DATE', 'CALENDAR_END_DATE']
+    override_values = [CDRCode, '04/29/2015', '04/29/2015']
+
+    for fld, val in zip(override_fields, override_values):
+        override = overrides.appendElement()
+        override.setElement("fieldId", fld)
+        override.setElement("value", val)
+
+    session.sendRequest(request)
+    output = []
+    loop = True
+    try:
+        while(loop):
+            event = session.nextEvent()
+            for msg in event:
+                if event.eventType() == blpapi.Event.RESPONSE or event.eventType() == blpapi.Event.PARTIAL_RESPONSE:
+                    securityDataArray = msg.getElement(blpapi.Name("securityData"))
+                    for securityData in securityDataArray.values():
+                        fieldData = securityData.getElement(blpapi.Name("fieldData"))
+                        for field in fieldData.elements():
+                            ratings = field.values()
+                            for i, rating in enumerate(ratings):
+                                for element in rating.elements():
+                                    output.append(element.getValue())
+                        return pd.Series(output)
+    finally:
+        endSession(session)
+
+
+def isExchangeOpenByTickers(tickers, date):
+    """
+    Takes list-like tickers and returns DataFrame with
+    boolean column whether was tradeable on that date
+    """
+
+    # Get CDR Country code for all tickers
+    data = getFields(tickers, "CDR_COUNTRY_CODE")
+    data['isOpen'] = True
+
+    # Get unique country codes
+    codes = data["CDR_COUNTRY_CODE"].unique().tolist()
+
+    # Get isOpen values for all codes
+    for code in codes:
+        dates = getNonSettlementDates(code)
+        if date in dates.tolist():
+            data['isOpen'][data.CDR_COUNTRY_CODE == code] = False
+
+    return data[['isOpen']]
