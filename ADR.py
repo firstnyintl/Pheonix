@@ -163,14 +163,16 @@ def yesterdayWorkingReport(bps=30):
     # Calculate adjusted spread
     data['Net Spread'] = ((data['ORD USD'] / data['Adj. Price']) - 1) * -100
 
-    pdb.set_trace()
     # Show only where spread bigger than bps
     output = data[data['Net Spread'].abs() > bps/100.]
 
     # Show only where markets open
     output = output[output.isOpen]
 
-    print output[['ADR', 'Net Spread']]
+    # Show only ADR and Net Spread columns
+    output = output[['ADR', 'Net Spread']]
+
+    print output
 
 if __name__ == '__main__':
     yesterdayWorkingReport()
