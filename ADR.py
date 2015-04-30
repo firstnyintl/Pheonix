@@ -65,6 +65,11 @@ def getVWAPtimes(country="Japan"):
             'start': time(9, 00),
             'end': time(11, 00),
             'zone': 'Europe/London'
+            },
+        'US': {
+            'start': time(15, 30),
+            'end': time(16, 00),
+            'zone': 'America/New York'
             }
         }
 
@@ -173,6 +178,7 @@ def yesterdayWorkingReport(bps=30):
     output = output[['ADR', 'Net Spread']]
 
     print output
+
 
 if __name__ == '__main__':
     yesterdayWorkingReport()

@@ -74,6 +74,7 @@ def getSingleField(security, field):
                     for securityData in securityDataArray.values():
                         security = securityData.getElementAsString(blpapi.Name("security"))
                         fieldData = securityData.getElement(blpapi.Name("fieldData"))
+                        if fieldData.numElements() == 0: raise ValueError('N/A Value')
                         for field in fieldData.elements():
                             return field.getValue()
     finally:

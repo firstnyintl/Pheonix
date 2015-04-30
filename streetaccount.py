@@ -6,11 +6,56 @@ import imaplib
 import email
 import nltk
 import pdb
+from BBG import getSingleField
 
 # Database file
 DB = 'DB.h5'
 
 n = 0
+
+
+def convertTicker(ticker):
+    """
+    Convert StreetAccount ticker to Bloomberg Ticker
+    """
+
+    # Split ticker by '.'s
+    parsedTicker = ticker.split('.')
+    numDots = len(parsedTicker)-1
+
+    # If no '.' in ticker is US, keep same
+    if numDots == 0: return ticker
+
+
+    # Special cases
+    if ticker == '500570.IN': return 'TTMT IN'
+    
+    # If 1 '.' in ticker, put space behind suffix
+    elif numDots == 1:
+
+        # Get suffix
+        suffix = parsedTicker[1]
+
+        # Check for two-character 'LN' names, add '/'
+        if (suffix == 'LN') and (len(parsedTicker[0]) == 2):
+            return ticker.replace('.', '/ ')
+
+        else: return ticker.replace('.', ' ')
+
+    # If 2 '.' in ticker
+    if numDots == 2:
+
+        # Get suffix and line
+        suffix = parsedTicker[2]
+        line = parsedTicker[1]
+
+        # If suffix 'CN'-- append line to ticker with '/'
+        if suffix == 'CN':
+            return parsedTicker[0] + '/' + line + ' ' + suffix
+
+        # Otherwise append line to ticker directly
+        else:
+            return parsedTicker[0] + line + ' ' + suffix
 
 
 def processEvent(event):
@@ -57,6 +102,22 @@ def processEvent(event):
     ptQuartile = ''
     streetHigh = False
     streetLow = False
+    highShortInt = False
+
+    # Convert ticker
+    ticker = convertTicker(ticker)
+    event[2] = ticker
+
+    # Get short interest for ticker, if available
+    try:
+        shrtInt = getSingleField(ticker + ' Equity', 'SHORT_INT_RATIO')
+
+        # If shrtInt > 5, set highShortInt to True
+        if shrtInt > 5: highShortInt = True
+
+    # If no short interest available (i.e. French names) leave at False
+    except:
+        pass
 
     # If ratings file exists
     if ratingsExists:
@@ -163,6 +224,7 @@ def processEvent(event):
     event.append(ptQuartile)
     event.append(streetHigh)
     event.append(streetLow)
+    event.append(highShortInt)
 
     # Convert Event to Strings
     event = [str(i) for i in event]
@@ -182,6 +244,7 @@ def processEvent(event):
     print 'PT Quartile: ' + event[9]
     print 'Street High: ' + event[10]
     print 'Street Low: ' + event[11]
+    print 'High SI: ' + event[12]
     print ''
 
     # If event file exists
@@ -189,7 +252,7 @@ def processEvent(event):
         msg = DataFrame([event], columns=store[events_path].columns, index=[index])
     # If doesn't exist
     else:
-        msg = DataFrame([event], columns=['Date', 'Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst', 'newAnalyst', 'PTQuartile', 'streetH', 'streetL'], index=[index])
+        msg = DataFrame([event], columns=['Date', 'Firm', 'Ticker', 'Type', 'Rating', 'PT', 'FX', 'Analyst', 'newAnalyst', 'PTQuartile', 'streetH', 'streetL', 'highSI'], index=[index])
 
     # Add event to event table
     store.append(events_path, msg, min_itemsize=200, format='table', data_columns=True)
@@ -205,14 +268,6 @@ def processEvent(event):
     print "Processed " + str(n)
     print '-------------------'
     print ''
-
-
-    def shortInt(self):
-        """
-        Returns True if short interest is above a significant threshold
-        """
-        shrtInt = BBG.getSingleField(self.ticker, 'SHORT_INT_RATIO')
-        return shrtInt > 5
 
 
 def getMessages():
@@ -326,7 +381,16 @@ def getMessages():
         # If single message / in "notable"
         else:
             # Look for 'at'
-            ix = msg.index('at')
+            try:
+                ix = msg.index('at')
+
+            # If no 'at', look after msg token
+            except:
+                single_msg_tokens = ['upgraded', 'downgraded', 'initiated', 'resumed', 'reinstated', 'reinitiated', 'assumed', 're-initiated', 're-instated']
+                for token in single_msg_tokens:
+                    try:
+                        ix = msg.index(token) + 4
+                    except: pass
 
             # Look for '(' or '--' or '*' or ';', whichever comes first after 'at'
             try: ix1 = msg[ix+1:].index('(')
