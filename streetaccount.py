@@ -26,10 +26,9 @@ def convertTicker(ticker):
     # If no '.' in ticker is US, keep same
     if numDots == 0: return ticker
 
-
     # Special cases
     if ticker == '500570.IN': return 'TTMT IN'
-    
+
     # If 1 '.' in ticker, put space behind suffix
     elif numDots == 1:
 

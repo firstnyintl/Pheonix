@@ -2,8 +2,10 @@ import blpapi
 from optparse import OptionParser
 import pandas as pd
 import numpy as np
+import pytz
 import pdb
 import datetime
+
 
 def parseCmdLine():
     parser = OptionParser(description="Retrieve realtime data.")
@@ -79,6 +81,135 @@ def getSingleField(security, field):
                             return field.getValue()
     finally:
         endSession(session)
+
+
+def updateHistoricalTickData(security, max_days=120):
+    """
+    Update historical tick data through today
+    """
+    session = createSession()
+    if not session.openService("//blp/refdata"):
+        print "Failed to open //blp/refdata"
+    refDataService = session.getService("//blp/refdata")
+    request = refDataService.createRequest("IntradayTickRequest")
+
+    # Dataset filepath
+    DBfile = 'TickData/' + security.replace(' ', '_') + '.h5'
+
+    # Open DataBase store
+    store = pd.HDFStore(DBfile)
+
+    # Path to dataset within file
+    dataset_path = 'ticks'
+
+    # Set security for request
+    request.set('security', security)
+
+    # Set type of event for request (TRADE)
+    request.append("eventTypes", 'TRADE')
+    request.append("eventTypes", 'AT_TRADE')
+
+    # Get todays datetime at 00:00
+    today = datetime.datetime.today()
+    today = datetime.datetime(day=today.day, month=today.month, year=today.year)
+    # Set timezone as New York
+    today = pytz.timezone('America/New_York').localize(today)
+
+    # Convert to UTC
+    today = today.astimezone(pytz.timezone('UTC'))
+
+    # Set end to today at 00:00
+    request.set("endDateTime", today)
+
+    # Get all data (SNEAKY FUCKING BLOOMBERG)
+    request.set("includeNonPlottableEvents", "True")
+    request.set("includeConditionCodes", "True")
+
+    # Check if dataframe already exists, get last index
+    try:
+        # Find last entry in stored tickdata
+        last_index = store[dataset_path].index.max()
+
+        # Set start to next day at 00:00
+        next_day = last_index + datetime.timedelta(days=1)
+        start = datetime.datetime(day=next_day.day, month=next_day.month, year=next_day.year)
+
+        # Set as New York
+        start = pytz.timezone('America/New_York').localize(start)
+
+        # Convert to UTC
+        start = start.astimezone(pytz.timezone('UTC'))
+
+        # If no new days passed since last update, exit
+        if today == start: return
+
+        # Set end to yesterday
+        # Set start time to next day after
+        request.set("startDateTime", last_index + datetime.timedelta(days=1))
+
+    except:
+        # Set start to max_days before end
+        start = today - datetime.timedelta(days=max_days)
+
+        # Set start and end for request
+        request.set("startDateTime", start)
+
+    # Send request
+    session.sendRequest(request)
+
+    print '---- Started Processing ' + security + '----'
+
+    loop = True
+    # Start message loop
+    try:
+        while(loop):
+            event = session.nextEvent()
+            for msg in event:
+                if event.eventType() == blpapi.Event.RESPONSE or event.eventType() == blpapi.Event.PARTIAL_RESPONSE:
+                    tickDataArray = msg.getElement(blpapi.Name("tickData"))
+                    tickDataArray = tickDataArray.getElement(1)
+
+                    # Create dataframe for message
+                    output = pd.DataFrame(columns=['Price', 'Size'])
+
+                    # Loop through all trades
+                    for eventData in tickDataArray.values():
+
+                        # Get time
+                        time = eventData.getElement(0).getValue(0)
+
+                        # Datetime returned is GMT, make timezone aware
+                        time = time.replace(tzinfo=pytz.timezone('UTC'))
+
+                        # Convert Datetime to New York timezone
+                        time = time.astimezone(pytz.timezone('America/New_York'))
+
+                        # Get price of trade
+                        price = eventData.getElement(2).getValue(0)
+
+                        # Get size of trade
+                        size = eventData.getElement(3).getValue(0)
+
+                        # Create DataFrame
+                        df = pd.DataFrame([[price, size]], columns=output.columns, index=[time])
+
+                        # Append row to message dataframe
+                        output = output.append(df)
+
+                    # Append message data to database
+                    store.append(dataset_path, output, min_itemsize=200, format='table', data_columns=True)
+                    print security + ' write, last ' + str(time) 
+
+                    # If final event, end loop
+                    if event.eventType() == blpapi.Event.RESPONSE:
+                        print '---- Finished Processing ' + security + '----'
+                        loop = False
+
+    finally:
+        endSession(session)
+
+    # Close DataBase access
+    store.close()
 
 
 def getHistoricalFields(securities, fields, startDate, endDate, periodicity='DAILY'):
