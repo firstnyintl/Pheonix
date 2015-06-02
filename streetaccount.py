@@ -1,3 +1,4 @@
+import pdb, traceback, sys
 import datetime
 import re
 import numpy as np
@@ -5,11 +6,10 @@ from pandas import HDFStore, DataFrame
 import imaplib
 import email
 import nltk
-import pdb
 from BBG import getSingleField
 
 # Database file
-DB = 'DB.h5'
+DB = 'E:/Ratings/DB.h5'
 
 n = 0
 
@@ -974,4 +974,9 @@ def getMessages():
 
 # If file is executed as script
 if __name__ == '__main__':
-    getMessages()
+    try:
+        getMessages()
+    except:
+        type, value, tb = sys.exc_info()
+        traceback.print_exc()
+        pdb.post_mortem(tb)

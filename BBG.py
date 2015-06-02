@@ -3,8 +3,8 @@ from optparse import OptionParser
 import pandas as pd
 import numpy as np
 import pytz
-import pdb
 import datetime
+import pdb
 
 
 def parseCmdLine():
@@ -83,75 +83,121 @@ def getSingleField(security, field):
         endSession(session)
 
 
-def updateHistoricalFXData(security, max_days=120, minute_interval=1):
+def updateHistoricalTickData(security, max_days_back=120, minute_interval=1):
     """
     Update historical tick data through today
     """
+    def processEventData(eventData):
+        """
+        Process Data from individual event
+        """
+        # For stocks
+        if security.split(' ')[-1] == 'Equity':
+            tickDataArray = msg.getElement(blpapi.Name("tickData"))
+            tickDataArray = tickDataArray.getElement(1)
+
+            # Create list that will hold dictionarys representing rows
+            rows_list = []
+
+            # Loop through all trades
+            for eventData in tickDataArray.values():
+
+                # Get time, convert to EST
+                time = eventData.getElement(0).getValue(0)
+                time = pytz.timezone('UTC').localize(time).astimezone(pytz.timezone('America/New_York'))
+                price = eventData.getElement(2).getValue(0)
+                size = eventData.getElement(3).getValue(0)
+                try: codes = eventData.getElement(4).getValue(0)
+                except: codes = ''
+                row = {
+                    'Price': price,
+                    'Size': size,
+                    'Codes': codes,
+                    'Time': time
+                }
+                rows_list.append(row)
+
+        # For FX
+        if security.split(' ')[-1] == 'Curncy':
+            barDataArray = msg.getElement(blpapi.Name("barData"))
+            barDataArray = barDataArray.getElement(1)
+
+            # Create list that will hold dictionarys representing rows
+            rows_list = []
+
+            # Loop through all trades
+            for eventData in barDataArray.values():
+
+                # Get time, convert to UTC
+                time = eventData.getElement(0).getValue(0)
+                time = pytz.timezone('UTC').localize(time).astimezone(pytz.timezone('America/New_York'))
+                price = eventData.getElement(4).getValue(0)
+                row = {
+                    'Price': price,
+                    'Time': time
+                }
+                rows_list.append(row)
+
+        return rows_list
+
+    # Start session and create request
     session = createSession()
     if not session.openService("//blp/refdata"):
         print "Failed to open //blp/refdata"
     refDataService = session.getService("//blp/refdata")
-    request = refDataService.createRequest("IntradayBarRequest")
 
-    # Dataset filepath
-    DBfile = 'TickData/' + security.replace(' ', '_') + '.h5'
-
-    # Open DataBase store
+    # Set HDF5 info
+    DBfile = 'E:/TickData/' + security.replace(' ', '_').replace('/', '-') + '.h5'
     store = pd.HDFStore(DBfile)
-
-    # Path to dataset within file
     dataset_path = 'ticks'
 
-    # Set security for request
-    request.set('security', security)
-
-    # Set type of event for request (TRADE)
-    request.set("eventType", 'TRADE')
-
-    # Set interval in minutes
-    request.set("interval", minute_interval)
-
-    # Get todays datetime at 00:00
+    # Get todays datetime at 00:00 (UTC)
     today = datetime.datetime.today()
     today = datetime.datetime(day=today.day, month=today.month, year=today.year)
-    # Set timezone as New York
-    today = pytz.timezone('America/New_York').localize(today)
+    today = pytz.timezone('America/New_York').localize(today).astimezone(pytz.timezone('UTC'))
 
-    # Convert to UTC
-    today = today.astimezone(pytz.timezone('UTC'))
+    # If stock, get tick data
+    if security.split(' ')[-1] == 'Equity':
+        # Set request info
+        request = refDataService.createRequest("IntradayTickRequest")
+        request.set('security', security)
+        request.append("eventTypes", 'TRADE')
+        request.append("eventTypes", 'AT_TRADE')
+        request.set("endDateTime", today - datetime.timedelta(seconds=1))
+        request.set("includeNonPlottableEvents", "True")
+        request.set("includeConditionCodes", "True")
 
-    # Set end to today at 00:00
-    request.set("endDateTime", today)
+    # If currency, get bars
+    if security.split(' ')[-1] == 'Curncy':
+        request = refDataService.createRequest("IntradayBarRequest")
+        request.set('security', security)
+        request.set("eventType", 'TRADE')
+        request.set("interval", minute_interval)
+        request.set("endDateTime", today)
 
     # Check if dataframe already exists, get last index
     try:
-        # Find last entry in stored tickdata
-        last_index = store[dataset_path].index.max()
+        nrows = store.get_storer(dataset_path).nrows
+        last_index = store.select('ticks', start=nrows-1, stop=nrows).index[0]
 
-        # Set start to next day at 00:00
+        # Set start to next day at 00:00 (UTC)
         next_day = last_index + datetime.timedelta(days=1)
         start = datetime.datetime(day=next_day.day, month=next_day.month, year=next_day.year)
-
-        # Set as New York
-        start = pytz.timezone('America/New_York').localize(start)
-
-        # Convert to UTC
-        start = start.astimezone(pytz.timezone('UTC'))
+        start = pytz.timezone('America/New_York').localize(start).astimezone(pytz.timezone('UTC'))
 
         # If no new days passed since last update, exit
         if today == start:
-            print '---- No new data for  ' + security + '----'
+            print security + ' ---> UP TO DATE'
+            store.close()
             return
 
-        # Set end to yesterday
-        # Set start time to next day after
-        request.set("startDateTime", last_index + datetime.timedelta(days=1))
+        # Set start time
+        request.set("startDateTime", start)
 
+    # If No tick data yet
     except:
         # Set start to max_days before end
-        start = today - datetime.timedelta(days=max_days)
-
-        # Set start and end for request
+        start = today - datetime.timedelta(days=max_days_back)
         request.set("startDateTime", start)
 
     # Send request
@@ -166,174 +212,32 @@ def updateHistoricalFXData(security, max_days=120, minute_interval=1):
             event = session.nextEvent()
             for msg in event:
                 if event.eventType() == blpapi.Event.RESPONSE or event.eventType() == blpapi.Event.PARTIAL_RESPONSE:
-                    barDataArray = msg.getElement(blpapi.Name("barData"))
-                    barDataArray = barDataArray.getElement(1)
 
-                    # Create dataframe for message
-                    output = pd.DataFrame(columns=['Price'])
+                    # Process msg
+                    rows_list = processEventData(msg)
 
-                    # Loop through all trades
-                    for eventData in barDataArray.values():
-
-                        # Get time
-                        time = eventData.getElement(0).getValue(0)
-
-                        # Datetime returned is GMT, make timezone aware
-                        time = time.replace(tzinfo=pytz.timezone('UTC'))
-
-                        # Convert Datetime to New York timezone
-                        time = time.astimezone(pytz.timezone('America/New_York'))
-
-                        # Get CLOSE price of bar
-                        price = eventData.getElement(4).getValue(0)
-
-                        # Append row to message dataframe
-                        output.loc[time] = [price]
+                    # Create DataFrame from output
+                    try:
+                        # Create dataframe for message
+                        output = pd.DataFrame(rows_list)
+                        output.index = output.Time
+                        output = output.drop('Time', 1)
+                    # If AttributeError, means no new data
+                    except AttributeError:
+                        print security + ' ---> NO NEW DATA'
+                        return
 
                     # Append message data to database
                     store.append(dataset_path, output, min_itemsize=200, format='table', data_columns=True)
-                    print security + ' write, last ' + str(time) 
+                    print security + ' write, last ' + str(output.index.values[-1])
 
                     # If final event, end loop
                     if event.eventType() == blpapi.Event.RESPONSE:
                         print '---- Finished Processing ' + security + '----'
                         loop = False
-
     finally:
         endSession(session)
-
-    # Close DataBase access
-    store.close()
-
-
-def updateHistoricalTickData(security, max_days=120):
-    """
-    Update historical tick data through today
-    """
-    session = createSession()
-    if not session.openService("//blp/refdata"):
-        print "Failed to open //blp/refdata"
-    refDataService = session.getService("//blp/refdata")
-    request = refDataService.createRequest("IntradayTickRequest")
-
-    # Dataset filepath
-    DBfile = 'TickData/' + security.replace(' ', '_') + '.h5'
-
-    # Open DataBase store
-    store = pd.HDFStore(DBfile)
-
-    # Path to dataset within file
-    dataset_path = 'ticks'
-
-    # Set security for request
-    request.set('security', security)
-
-    # Set type of event for request (TRADE)
-    request.append("eventTypes", 'TRADE')
-    request.append("eventTypes", 'AT_TRADE')
-
-    # Get todays datetime at 00:00
-    today = datetime.datetime.today()
-    today = datetime.datetime(day=today.day, month=today.month, year=today.year)
-    # Set timezone as New York
-    today = pytz.timezone('America/New_York').localize(today)
-
-    # Convert to UTC
-    today = today.astimezone(pytz.timezone('UTC'))
-
-    # Set end to today at 00:00
-    request.set("endDateTime", today)
-
-    # Get all data (SNEAKY FUCKING BLOOMBERG)
-    request.set("includeNonPlottableEvents", "True")
-    request.set("includeConditionCodes", "True")
-
-    # Check if dataframe already exists, get last index
-    try:
-        # Find last entry in stored tickdata
-        last_index = store[dataset_path].index.max()
-
-        # Set start to next day at 00:00
-        next_day = last_index + datetime.timedelta(days=1)
-        start = datetime.datetime(day=next_day.day, month=next_day.month, year=next_day.year)
-
-        # Set as New York
-        start = pytz.timezone('America/New_York').localize(start)
-
-        # Convert to UTC
-        start = start.astimezone(pytz.timezone('UTC'))
-
-        # If no new days passed since last update, exit
-        if today == start:
-            print '---- No new data for  ' + security + '----'
-            return
-
-        # Set end to yesterday
-        # Set start time to next day after
-        request.set("startDateTime", last_index + datetime.timedelta(days=1))
-
-    except:
-        # Set start to max_days before end
-        start = today - datetime.timedelta(days=max_days)
-
-        # Set start and end for request
-        request.set("startDateTime", start)
-
-    # Send request
-    session.sendRequest(request)
-
-    print '---- Started Processing ' + security + '----'
-
-    loop = True
-    # Start message loop
-    try:
-        while(loop):
-            event = session.nextEvent()
-            for msg in event:
-                if event.eventType() == blpapi.Event.RESPONSE or event.eventType() == blpapi.Event.PARTIAL_RESPONSE:
-                    tickDataArray = msg.getElement(blpapi.Name("tickData"))
-                    tickDataArray = tickDataArray.getElement(1)
-
-                    # Create dataframe for message
-                    output = pd.DataFrame(columns=['Price', 'Size'])
-
-                    # Loop through all trades
-                    for eventData in tickDataArray.values():
-
-                        # Get time
-                        time = eventData.getElement(0).getValue(0)
-
-                        # Datetime returned is GMT, make timezone aware
-                        time = time.replace(tzinfo=pytz.timezone('UTC'))
-
-                        # Convert Datetime to New York timezone
-                        time = time.astimezone(pytz.timezone('America/New_York'))
-
-                        # Get price of trade
-                        price = eventData.getElement(2).getValue(0)
-
-                        # Get size of trade
-                        size = eventData.getElement(3).getValue(0)
-
-                        # Create DataFrame
-                        df = pd.DataFrame([[price, size]], columns=output.columns, index=[time])
-
-                        # Append row to message dataframe
-                        output = output.append(df)
-
-                    # Append message data to database
-                    store.append(dataset_path, output, min_itemsize=200, format='table', data_columns=True)
-                    print security + ' write, last ' + str(time) 
-
-                    # If final event, end loop
-                    if event.eventType() == blpapi.Event.RESPONSE:
-                        print '---- Finished Processing ' + security + '----'
-                        loop = False
-
-    finally:
-        endSession(session)
-
-    # Close DataBase access
+    # Close DB access
     store.close()
 
 
@@ -689,11 +593,14 @@ def getExchangeHolidaysByTickers(tickers, start_date, end_date):
     Takes list-like tickers and returns dictionary with
     Series exchange holidays for each ticker
     """
+    # Increment start_date by one business day so that INCLUSIVE of date
+    end_date = (end_date + pd.tseries.offsets.BDay()).to_datetime().date()
+
     # Get CDR Country code for all tickers
-    data = getFields(tickers, "CDR_COUNTRY_CODE")
+    data = getFields(tickers, "CDR_EXCH_CODE")
 
     # Get unique country codes
-    codes = data["CDR_COUNTRY_CODE"].unique().tolist()
+    codes = data["CDR_EXCH_CODE"].unique().tolist()
 
     output = {}
 
@@ -707,7 +614,7 @@ def getExchangeHolidaysByTickers(tickers, start_date, end_date):
         dates = dates[(dates >= start_date) & (dates <= end_date)]
 
         # Get tickers that apply
-        subset = data[data.CDR_COUNTRY_CODE == code].index.values
+        subset = data[data.CDR_EXCH_CODE == code].index.values
 
         # Add dates for every ticker that applies
         for t in subset:

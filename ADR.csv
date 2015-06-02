@@ -1,53 +1,82 @@
-,ADR,Bid,Offer
-0,IPXHY US Equity,-0.05,-0.045
-1,DWAHY US Equity,-0.05,0.05
-2,SKHSY US Equity,-0.05,-0.045
-3,JGCCY US Equity,-0.05,-0.045
-4,KNBWY US Equity,-0.05,-0.045
-5,SVNDY US Equity,-0.05,-0.045
-6,AHKSY US Equity,-0.05,-0.045
-7,SHECY US Equity,-0.05,-0.045
-8,KCRPY US Equity,-0.05,-0.045
-9,TKPYY US Equity,-0.05,-0.045
-10,ALPMY US Equity,-0.05,-0.045
-11,DSNKY US Equity,-0.05,-0.045
-12,YAHOY US Equity,-0.05,-0.045
-13,FUJIY US Equity,-0.05,-0.045
-15,SSDOY US Equity,-0.05,-0.045
-16,BRDCY US Equity,-0.05,-0.045
-17,ASGLY US Equity,-0.05,-0.045
-18,NSSMY US Equity,-0.05,-0.045
-19,JPSWY US Equity,-0.05,-0.045
-20,KMTUY US Equity,-0.05,-0.045
-21,KUBTY US Equity,-0.05,-0.045
-22,DKILY US Equity,-0.05,-0.045
-23,HTHIY US Equity,-0.05,-0.045
-24,SHCAY US Equity,-0.05,-0.045
-25,SNE US Equity,-0.03,0.03
-26,ATE US Equity,-0.05,0.05
-27,DNZOY US Equity,-0.05,-0.045
-28,KYO US Equity,-0.05,0.05
-29,NSANY US Equity,-0.05,-0.045
-30,TM US Equity,-0.05,0.05
-31,MZDAY US Equity,-0.05,-0.045
-32,HMC US Equity,-0.05,0.05
-33,NINOY US Equity,-0.05,-0.045
-34,OCPNY US Equity,-0.05,-0.045
-35,CAJ US Equity,-0.05,0.05
-36,DNPLY US Equity,-0.05,-0.045
-37,NTDOY US Equity,-0.05,-0.045
-38,ITOCY US Equity,-0.05,-0.045
-39,SSUMY US Equity,-0.05,-0.045
-40,MSBHY US Equity,-0.05,-0.045
-41,MTU US Equity,-0.05,0.015
-42,SMFG US Equity,-0.05,0.045
-43,NMR US Equity,-0.01,0.015
-44,MSADY US Equity,-0.05,-0.045
-45,TKOMY US Equity,-0.05,-0.045
-46,EJPRY US Equity,-0.05,-0.045
-47,NTT US Equity,-0.05,0.05
-48,DCM US Equity,-0.05,0.05
-49,SOMLY US Equity,-0.05,-0.045
-50,SFTBY US Equity,-0.05,-0.045
-51,TOELY US Equity,-0.05,-0.045
-52,PCRFY US EQUITY,-0.05,0.05
+ADR,ORD,FX,Ratio,Bid,Offer
+ASML US Equity,ASML NA Equity,EUR,1,0.05,0.05
+BP US Equity,BP/ LN Equity,GBP,6,0.05,0.05
+SNE US Equity,6758 JP Equity,JPY,1,-0.03,0.03
+ABB US Equity,ABBN VX Equity,CHF,1,,
+NVS US Equity,NOVN VX Equity,CHF,1,,
+CS US Equity,CSGN VX Equity,CHF,1,,
+JBAXY US Equity,BAER VX Equity,CHF,0.2,,
+HCMLY US Equity,HOLN VX Equity,CHF,0.2,,
+SSREY US Equity,SREN VX Equity,CHF,1,,
+CFRUY US Equity,CFR VX Equity,CHF,0.1,,
+NSRGY US Equity,NESN VX Equity,CHF,1,,
+RHHBY US Equity,ROG VX Equity,CHF,0.125,,
+NVO US Equity,NOVOB DC Equity,DKK,1,,
+VWDRY US Equity,VWS DC Equity,DKK,0.333333,,
+ING US Equity,INGA NA Equity,EUR,1,,
+ALU US Equity,ALU FP Equity,EUR,1,,
+MT US Equity,MT NA Equity,EUR,1,,
+FCAU US Equity,FCA IM Equity,EUR,1,,
+ORAN US Equity,ORA FP Equity,EUR,1,,
+SAP US Equity,SAP GR Equity,EUR,1,,
+BUD US Equity,ABI BB Equity,EUR,1,,
+DB US Equity,DBK GY Equity,EUR,1,,
+NOK US Equity,NOK1V FH Equity,EUR,1,,
+UN US Equity,UNA NA Equity,EUR,1,,
+CNHI US Equity,CNHI IM Equity,EUR,1,,
+TS US Equity,TEN IM Equity,EUR,2,,
+PHG US Equity,PHIA NA Equity,EUR,1,,
+QGEN US Equity,QIA GY Equity,EUR,1,,
+SAN US Equity,SAN SM Equity,EUR,1,,
+TOT US Equity,FP FP Equity,EUR,1,,
+SNY US Equity,SAN FP Equity,EUR,0.5,,
+TEF US Equity,TEF SM Equity,EUR,1,,
+E US Equity,ENI IM Equity,EUR,2,,
+NBG US Equity,ETE GA Equity,EUR,1,,
+DTEGY US Equity,DTE GR Equity,EUR,1,,
+BASFY US Equity,BAS GR Equity,EUR,1,,
+BAYRY US Equity,BAYN GR Equity,EUR,1,,
+AZSEY US Equity,ALV GR Equity,EUR,0.1,,
+DPSGY US Equity,DPW GR Equity,EUR,1,,
+BAMXY US Equity,BMW GR Equity,EUR,0.3333333,,
+CTTAY US Equity,CON GR Equity,EUR,0.2,,
+CRZBY US Equity,CBK GR Equity,EUR,1,,
+EONGY US Equity,EOAN GR Equity,EUR,1,,
+BNPQY US Equity,BNP FP Equity,EUR,0.5,,
+REPYY US Equity,REP SM Equity,EUR,1,,
+AXAHY US Equity,CS FP Equity,EUR,1,,
+ISNPY US Equity,ISP IM Equity,EUR,6,,
+LVMUY US Equity,MC FP Equity,EUR,0.2,,
+LRLCY US Equity,OR FP Equity,EUR,0.2,,
+SBGSY US Equity,SU FP Equity,EUR,0.2,,
+DANOY US Equity,BN FP Equity,EUR,0.2,,
+GDFZY US Equity,GSZ FP Equity,EUR,1,,
+TI US Equity,TIT IM Equity,EUR,10,,
+VIVHY US Equity,VIV FP Equity,EUR,1,,
+DDAIY US Equity,DAI GR Equity,EUR,1,,
+SCGLY US Equity,GLE FP Equity,EUR,0.2,,
+ARMH US Equity,ARM LN Equity,GBP,3,,
+NGG US Equity,NG/ LN Equity,GBP,5,,
+SHPG US Equity,SHP LN Equity,GBP,3,,
+RIO US Equity,RIO LN Equity,GBP,1,,
+GSK US Equity,GSK LN Equity,GBP,2,,
+GOLD US Equity,RRS LN Equity,GBP,1,,
+VOD US Equity,VOD LN Equity,GBP,10,,
+BCS US Equity,BARC LN Equity,GBP,4,,
+LYG US Equity,LLOY LN Equity,GBP,4,,
+RBS US Equity,RBS LN Equity,GBP,2,,
+AZN US Equity,AZN LN Equity,GBP,1,,
+RDS/A US Equity,RDSA NA Equity,EUR,2,,
+HSBC US Equity,HSBA LN Equity,GBP,5,,
+TSCDY US Equity,TSCO LN Equity,GBP,3,,
+GLNCY US Equity,GLEN LN Equity,GBP,2,,
+BBL US Equity,BLT LN Equity,GBP,2,,
+BTI US Equity,BATS LN Equity,GBP,2,,
+RCL US Equity,RCL NO Equity,NOK,1,,
+STO US Equity,STL NO Equity,NOK,1,,
+SDRL US Equity,SDRL NO Equity,NOK,1,,
+TELNY US Equity,TEL NO Equity,NOK,3,,
+DNHBY US Equity,DNB NO Equity,NOK,10,,
+NHYDY US Equity,NHY NO Equity,NOK,1,,
+ERIC US Equity,ERICB SS Equity,SEK,1,,
+AU US Equity,ANG SJ Equity,ZAR,1,,
