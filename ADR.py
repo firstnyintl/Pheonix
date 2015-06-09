@@ -20,35 +20,54 @@ def getWorstCaseTurn(ticker, side, price=None):
     return float(cost)
 
 
-def getUniverse():
+def getADRTable():
+    """
+    Load DataFrame containing ADR universe and information
+    """
+    return pd.DataFrame.from_csv('ADR_test.csv')
+
+
+def getUniverse(data=None):
     """
     Load DataFrame containing list of ADR tickers
     """
-    reference = pd.DataFrame.from_csv('ADR_test.csv')
+    if data is None:
+        reference = getADRTable()
+    else:
+        reference = data
     return reference.index.values
 
 
-def getADRFX(ticker):
+def getADRFX(ticker, data=None):
     """
     Returns ADR ratio given ADR ticker
     """
-    reference = pd.DataFrame.from_csv('ADR_test.csv')
+    if data is None:
+        reference = getADRTable()
+    else:
+        reference = data
     return reference.ix[ticker].FX
 
 
-def getADRRatio(ticker):
+def getADRRatio(ticker, data=None):
     """
     Returns ADR ratio given ADR ticker
     """
-    reference = pd.DataFrame.from_csv('ADR_test.csv')
+    if data is None:
+        reference = getADRTable()
+    else:
+        reference = data
     return reference.ix[ticker].Ratio
 
 
-def getORD(ticker):
+def getORD(ticker, data=None):
     """
     Returns ORD ticker given ADR ticker
     """
-    reference = pd.DataFrame.from_csv('ADR_test.csv')
+    if data is None:
+        reference = getADRTable()
+    else:
+        reference = data
     return reference.ix[ticker].ORD
 
 

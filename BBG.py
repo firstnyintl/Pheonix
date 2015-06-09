@@ -1,3 +1,4 @@
+import Data
 import blpapi
 from optparse import OptionParser
 import pandas as pd
@@ -107,13 +108,22 @@ def updateHistoricalTickData(security, max_days_back=120, minute_interval=1):
                 time = pytz.timezone('UTC').localize(time).astimezone(pytz.timezone('America/New_York'))
                 price = eventData.getElement(2).getValue(0)
                 size = eventData.getElement(3).getValue(0)
-                try: codes = eventData.getElement(4).getValue(0)
-                except: codes = ''
+                try: codesString = eventData.getElement(4).getValue(0)
+                except: codesString = ''
+
+                # Get VWAP Exclude codes and see if trades should be included
+                VWAPcodes = Data.getVWAPExcludeCodesByTicker(security)
+                codes = np.asarray(codesString.split(','))
+                if (np.intersect1d(VWAPcodes, codes).size > 0): VWAPinclude = False
+                else: VWAPinclude = True
+
+                # Convert codes
                 row = {
                     'Price': price,
                     'Size': size,
-                    'Codes': codes,
-                    'Time': time
+                    'Codes': codesString,
+                    'Time': time,
+                    'VWAP_Include': VWAPinclude
                 }
                 rows_list.append(row)
 
@@ -545,7 +555,7 @@ def RTmessageToPandas(message):
     return pd.Series(output)
 
 
-def getNonSettlementDates(CDRCode, start_date, end_date):
+def getNonSettlementDates(CDRCode):
     """
     Returns Series of dates given 'CDR_COUNTRY_CODE'
     """
@@ -559,8 +569,8 @@ def getNonSettlementDates(CDRCode, start_date, end_date):
     request.append('fields', 'CALENDAR_NON_SETTLEMENT_DATES')
 
     overrides = request.getElement("overrides")
-    override_fields = ['SETTLEMENT_CALENDAR_CODE', 'CALENDAR_START_DATE', 'CALENDAR_END_DATE']
-    override_values = [CDRCode, start_date, start_date]
+    override_fields = ['SETTLEMENT_CALENDAR_CODE']
+    override_values = [CDRCode]
 
     for fld, val in zip(override_fields, override_values):
         override = overrides.appendElement()
@@ -588,36 +598,14 @@ def getNonSettlementDates(CDRCode, start_date, end_date):
         endSession(session)
 
 
-def getExchangeHolidaysByTickers(tickers, start_date, end_date):
+def getExchangeHolidaysByTicker(ticker):
     """
-    Takes list-like tickers and returns dictionary with
-    Series exchange holidays for each ticker
+    Returns list of datetime.date objects
     """
-    # Increment start_date by one business day so that INCLUSIVE of date
-    end_date = (end_date + pd.tseries.offsets.BDay()).to_datetime().date()
+    # Get CDR Country code
+    code = getFields(ticker, "CDR_EXCH_CODE").values[0][0]
 
-    # Get CDR Country code for all tickers
-    data = getFields(tickers, "CDR_EXCH_CODE")
+    # Get all settlement dates for the the CODE (date ranges dont work)
+    dates = getNonSettlementDates(code).values
 
-    # Get unique country codes
-    codes = data["CDR_EXCH_CODE"].unique().tolist()
-
-    output = {}
-
-    # Get isOpen values for all codes
-    for code in codes:
-
-        # Get all settlement dates for the the CODE (date ranges dont work)
-        dates = getNonSettlementDates(code, start_date, end_date)
-
-        # Subset that applies for givem dates
-        dates = dates[(dates >= start_date) & (dates <= end_date)]
-
-        # Get tickers that apply
-        subset = data[data.CDR_EXCH_CODE == code].index.values
-
-        # Add dates for every ticker that applies
-        for t in subset:
-            output[t] = dates
-
-    return output
+    return dates

@@ -5,7 +5,7 @@ from ADR import getORD, getADRFX, getADRRatio, calcADRPremium
 from Data import dropHolidaysFromIndex, getPrices, getMarketClosePrices
 
 
-def ADR_Premium(ticker, start, end, frequency='B', time_of_day=[15, 30], ADR_data=None, ORD_data=None, FX_data=None):
+def ADR_Premium(ticker, start, end, frequency='B', time_of_day=[15, 30], ADR_data=None, ORD_data=None, FX_data=None, ADR_table=None):
     """
     Ticker: "MSFT US Equity'
     Start, End: datetime.date
@@ -29,7 +29,7 @@ def ADR_Premium(ticker, start, end, frequency='B', time_of_day=[15, 30], ADR_dat
         index = dropHolidaysFromIndex(ticker, index)
 
         # Drop dates on ORD holidays
-        index = dropHolidaysFromIndex(getORD(ticker), index)
+        index = dropHolidaysFromIndex(getORD(ticker, data=ADR_table), index)
 
         # Create indicator DataFrame
         return pd.DataFrame(index=index)
@@ -41,13 +41,13 @@ def ADR_Premium(ticker, start, end, frequency='B', time_of_day=[15, 30], ADR_dat
     indicator['ADR'] = getPrices(ticker, indicator.index, data=ADR_data)
 
     # Get ORD last prices as of exchange close and add to indicator dataframe 
-    indicator['ORD'] = getMarketClosePrices(getORD(ticker), index=indicator.index, data=ORD_data)
+    indicator['ORD'] = getMarketClosePrices(getORD(ticker, data=ADR_table), index=indicator.index, data=ORD_data)
 
     # Get last FX trade as of indicator dates and add to dataframe
-    indicator['FX'] = getPrices(getADRFX(ticker), indicator.index, data=FX_data)
+    indicator['FX'] = getPrices(getADRFX(ticker, data=ADR_table), indicator.index, data=FX_data)
 
     # Calculate Premium
-    indicator[ADR_Premium.__name__] = indicator.apply(lambda row: calcADRPremium(row['ADR'], row['ORD'], row['FX'], getADRRatio(ticker), getADRFX(ticker)), axis=1)
+    indicator[ADR_Premium.__name__] = indicator.apply(lambda row: calcADRPremium(row['ADR'], row['ORD'], row['FX'], getADRRatio(ticker, data=ADR_table), getADRFX(ticker, data=ADR_table)), axis=1)
 
     # Return Indicator
     return indicator[ADR_Premium.__name__]

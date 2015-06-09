@@ -3,14 +3,12 @@ import pytz
 import copy
 import itertools
 import multiprocessing
-from functools import partial
 from concurrent import futures
 from datetime import timedelta, date, time, datetime
 import pandas as pd
 import Indicator
-from Data import getVWAP, getPrices, getExchangeTimesByTicker, getTickData
-from ADR import getADRFX, getADRRatio, getORD, calcADREquiv, getUniverse, getWorstCaseTurn
-from BBG import getExchangeHolidaysByTickers
+from Data import getVWAP, getPrices, getExchangeTimesByTicker, getTickData, getNonSettlementDates
+from ADR import getADRFX, getADRRatio, getORD, calcADREquiv, getUniverse, getWorstCaseTurn, getADRTable
 
 
 ADR_basic = {
@@ -52,60 +50,64 @@ def buildDateRange(days):
     return date_range_index
 
 
-def backtest(rules, ticker, days=100, load_data='upfront', date_range=None, ADR_data=None, ORD_data=None, FX_data=None):
+def buildSignals(ticker, date_range, conditions, ADR_data=None, ORD_data=None, FX_data=None, ADR_table=None):
+    """
+    Builds signals DataFrame
+    """
+    # Get indicator names
+    indicator_names = conditions['indicator'].unique()
 
-    def buildSignals(date_range, conditions, ADR_data=None, ORD_data=None, FX_data=None):
-        """
-        Builds signals DataFrame
-        """
-        # Get indicator names
-        indicator_names = conditions['indicator'].unique()
+    # Get indicators
+    indicators = pd.DataFrame()
+    for name in indicator_names:
+        indicator = getattr(Indicator, name)
+        indicators[name] = indicator(ticker, date_range.min().date(), date_range.max().date(), ADR_data=ADR_data, ORD_data=ORD_data, FX_data=FX_data, ADR_table=ADR_table)
 
-        # Get indicators
-        indicators = pd.DataFrame()
-        for name in indicator_names:
-            indicator = getattr(Indicator, name)
-            indicators[name] = indicator(ticker, date_range.min().date(), date_range.max().date(), ADR_data=ADR_data, ORD_data=ORD_data, FX_data=FX_data)
+    # Create empty signals list
+    signals = pd.Series(index=indicators.index)
 
-        # Create empty signals list
-        signals = pd.Series(index=indicators.index)
+    # Loop through all conditions
+    for classification, (indicator, logic, value) in conditions.iterrows():
 
-        # Loop through all conditions
-        for classification, (indicator, logic, value) in conditions.iterrows():
+        # Create bool vector where conditions are true
+        bool_vector = indicators.eval(' '.join([indicator, logic, str(value)]))
 
-            # Create bool vector where conditions are true
-            bool_vector = indicators.eval(' '.join([indicator, logic, str(value)]))
+        # Add signals to signals Seriesy
+        signals[bool_vector] = classification
 
-            # Add signals to signals Seriesy
-            signals[bool_vector] = classification
+    # Get rid of NaN values
+    signals = signals.dropna()
 
-        # Get rid of NaN values
-        signals = signals.dropna()
+    return signals
 
-        return signals
 
-    def buildSignalRules():
-        """
-        Returns a dataframe of conditions that can be used to generate signals
-        """
+def buildSignalRules(rules):
+    """
+    Returns a dataframe of conditions that can be used to generate signals
+    """
 
-        # Get signal rules from strategy
-        signal_rules = rules['Signal']
+    # Get signal rules from strategy
+    signal_rules = rules['Signal']
 
-        return pd.DataFrame(signal_rules).T
+    return pd.DataFrame(signal_rules).T
 
-    def calculateSpreadsCaptured(signals, ADR_data=None, ORD_data=None, FX_data=None):
+
+def backtest(rules, ticker, days=100, date_range=None, ADR_data=None, ORD_data=None, FX_data=None, ADR_table=None):
+
+    def calculateSpreadsCaptured(signals, ADR_data=None, ORD_data=None, FX_data=None, ADR_table=None):
 
         # Drop signals where ORD holiday is day after signal
         trade_offset = 1
-        holidays = getExchangeHolidaysByTickers(getORD(ticker), signals.index.min().date(), signals.index.max().date())
-        holidays = holidays[getORD(ticker)] - (trade_offset * pd.tseries.offsets.BDay())
+        holidays = getNonSettlementDates(getORD(ticker, data=ADR_table), signals.index.date.min(), signals.index.date.max())
+        holidays = holidays - (trade_offset * pd.tseries.offsets.BDay())
         signals = signals.drop(signals.index[[signals.index.date.tolist().index(x.to_datetime().date()) for x in holidays if x.to_datetime().date() in signals.index.date]])
 
         # Drop signals yesterday (no tick data today)
         today = (datetime.today() - pd.tseries.offsets.BDay()).to_datetime().date()
         if today in signals.index.date.tolist():
             signals = signals.drop(signals.index[signals.index.date.tolist().index(today)])
+
+        if len(signals) == 0: return None
 
         # Times to use for VWAP entry
         entry_start_VWAP = time(15, 30)
@@ -121,7 +123,7 @@ def backtest(rules, ticker, days=100, load_data='upfront', date_range=None, ADR_
         entry_trades['Price'] = map(lambda x, y: getVWAP(ticker, x, y, data=ADR_data), entry_trades['VWAP Start'], entry_trades['VWAP End'])
 
         # Get VWAP times and zone
-        exchangeTimes = getExchangeTimesByTicker(getORD(ticker))
+        exchangeTimes = getExchangeTimesByTicker(getORD(ticker, data=ADR_table))
 
         VWAP_hours_after_open = rules['Execution']['ORD_VWAP_hours_after_open']['value']
 
@@ -137,14 +139,14 @@ def backtest(rules, ticker, days=100, load_data='upfront', date_range=None, ADR_
         exit_end_VWAP = map(lambda x: pytz.timezone(exit_timezone).localize(datetime.combine(x, exit_end_VWAP)).astimezone(pytz.timezone('America/New_York')), trade_dates)
 
         # If Long signal, set side to buy, if short signal, set to short
-        exit_trades['Security'] = getORD(ticker)
+        exit_trades['Security'] = getORD(ticker, data=ADR_table)
         exit_trades['Type'].ix[signals[signals == 'Discount'].index] = 'Sell'
         exit_trades['Type'].ix[signals[signals == 'Premium'].index] = 'Buy'
         exit_trades['VWAP Start'] = exit_start_VWAP
         exit_trades['VWAP End'] = exit_end_VWAP
-        exit_trades['Price'] = map(lambda x, y: getVWAP(getORD(ticker), x, y, data=ORD_data), exit_trades['VWAP Start'], exit_trades['VWAP End'])
-        exit_trades['FX'] = getPrices(getADRFX(ticker), exit_trades['VWAP End'], data=FX_data).values
-        exit_trades['ADR Equiv'] = exit_trades.apply(lambda row: calcADREquiv(row['Price'], row['FX'], getADRRatio(ticker), getADRFX(ticker)), axis=1)
+        exit_trades['Price'] = map(lambda x, y: getVWAP(getORD(ticker, data=ADR_table), x, y, data=ORD_data), exit_trades['VWAP Start'], exit_trades['VWAP End'])
+        exit_trades['FX'] = getPrices(getADRFX(ticker, data=ADR_table), exit_trades['VWAP End'], data=FX_data).values
+        exit_trades['ADR Equiv'] = exit_trades.apply(lambda row: calcADREquiv(row['Price'], row['FX'], getADRRatio(ticker, data=ADR_table), getADRFX(ticker, data=ADR_table)), axis=1)
 
         # Combine in one dataframe
         result = pd.DataFrame(index=entry_trades.index)
@@ -160,13 +162,16 @@ def backtest(rules, ticker, days=100, load_data='upfront', date_range=None, ADR_
 
         return result
 
-    def runReport(result):
+    def runReport(result, start_time):
         """
         Compile stats and summary on results
         """
         # Check if empty
         empty = False
         if result is None: empty = True
+
+        # Get end_time
+        end_time = datetime.now()
 
         # Drop days with zero liquidity
         zero_liquidity_trades = 0
@@ -186,45 +191,50 @@ def backtest(rules, ticker, days=100, load_data='upfront', date_range=None, ADR_
             'Max Net Profit': 0 if empty else result['Net Profit'].max(),
             'Min Net Profit': 0 if empty else result['Net Profit'].min(),
             'Average Turn Cost': 0 if empty else result['Turn (worst case)'].mean(),
-            'Data Load Method': load_data,
             'Number of 0 liquidity trades': zero_liquidity_trades,
-            'Strategy': rules
+            # 'Strategy': rules
+            'Speed (s)': (end_time - start_time).total_seconds(),
+            'Premium threshold %': rules['Signal']['Premium']['value'],
+            'Discount threshold %': rules['Signal']['Discount']['value'],
+            'VWAP ORD # hours after open': rules['Execution']['ORD_VWAP_hours_after_open']['value']
         }
         return pd.Series(report)
 
-    def runBackTest(ADR_data, ORD_data, FX_data):
+    def runBackTest(ADR_data, ORD_data, FX_data, ADR_table):
 
         # Take Strategy, build signal rules for signal generation 
-        signal_rules = buildSignalRules()
+        signal_rules = buildSignalRules(rules)
 
-        # Load data upfront
-        if load_data == 'upfront':
-
-            # If data not provided, load data
-            if all(v is None for v in [ADR_data, ORD_data, FX_data]):
-                ADR_data = getTickData(ticker, date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
-                ORD_data = getTickData(getORD(ticker), date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
-                FX_data = getTickData(getADRFX(ticker), date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
+        if ADR_table is None:
+            ADR_table = getADRTable()
+        if ADR_data is None:
+            ADR_data = getTickData(ticker, date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
+        if ORD_data is None:
+            ORD_data = getTickData(getORD(ticker, data=ADR_table), date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
+        if FX_data is None:
+            FX_data = getTickData(getADRFX(ticker, data=ADR_table), date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
 
         # Build Signals from conditions
-        signals = buildSignals(date_range, signal_rules, ADR_data, ORD_data, FX_data)
+        signals = buildSignals(ticker, date_range, signal_rules, ADR_data=ADR_data, ORD_data=ORD_data, FX_data=FX_data, ADR_table=ADR_table)
 
         # If made trades
         if len(signals) != 0:
-            return calculateSpreadsCaptured(signals, ADR_data=ADR_data, ORD_data=ORD_data, FX_data=FX_data)
+            return calculateSpreadsCaptured(signals, ADR_data=ADR_data, ORD_data=ORD_data, FX_data=FX_data, ADR_table=ADR_table)
 
         else:
             return None
+
+    start_time = datetime.now()
 
     # Build date range
     if date_range is None:
         date_range = buildDateRange(days)
 
     # Run backtest results
-    result = runBackTest(ADR_data, ORD_data, FX_data)
+    result = runBackTest(ADR_data, ORD_data, FX_data, ADR_table)
 
     # Calculate report
-    report = runReport(result)
+    report = runReport(result, start_time)
 
     print report
     print '\n'
@@ -292,15 +302,18 @@ def buildRulesForOptimization(strategy, optimization):
     return rules
 
 
-def optimize(ticker, strategy, days=100):
+def optimize(ticker, strategy=ADR_basic, days=100, ADR_table=None):
+
+    if ADR_table is None:
+        ADR_table = getADRTable()
 
     # # Build date range so only have to compute once
     date_range = buildDateRange(days=100)
 
     # Load data so only need to load once
     ADR_data = getTickData(ticker, date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
-    ORD_data = getTickData(getORD(ticker), date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
-    FX_data = getTickData(getADRFX(ticker), date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
+    ORD_data = getTickData(getORD(ticker, data=ADR_table), date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
+    FX_data = getTickData(getADRFX(ticker, data=ADR_table), date_range.date.min(), (date_range.date.max() + pd.tseries.offsets.BDay()))
 
     # Set optimization ranges for paramters
     optimization = {
@@ -316,9 +329,22 @@ def optimize(ticker, strategy, days=100):
     # Build rules
     rules = buildRulesForOptimization(strategy, optimization)
 
-    df = pd.DataFrame([backtest(rule, ticker, ADR_data=ADR_data, ORD_data=ORD_data, FX_data=FX_data, date_range=date_range) for rule in rules])
+    result = pd.DataFrame([backtest(rule, ticker, ADR_data=ADR_data, ORD_data=ORD_data, FX_data=FX_data, date_range=date_range, ADR_table=ADR_table) for rule in rules])
 
-    return df
+    return result
+
+
+def globalOptimization(method='simple'):
+
+    # Load ADR Table
+    ADR_table = getADRTable()
+
+    universe = getUniverse(data=ADR_table)
+
+    if method == 'simple':
+        result = pd.Panel([optimize(stock, ADR_table=ADR_table) for stock in universe])
+
+    pdb.set_trace()
 
 
 def globalBacktest(days=100, method='multiprocess', load_data='realtime', core_multiplier=1):

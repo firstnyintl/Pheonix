@@ -1,11 +1,29 @@
 from pandas import HDFStore, Timestamp, DatetimeIndex
-from datetime import timedelta
+from datetime import timedelta, datetime
 import msgpack
 import pytz
 import pandas as pd
+import numpy as np
 from multiprocessing import Pool, cpu_count
-from BBG import getExchangeHolidaysByTickers, updateHistoricalTickData
+import BBG
 import pdb
+
+
+def getNonSettlementDates(ticker, start, stop):
+    """
+    Get non settlement dates for ticker (1950-2050). List of datetime.date objects
+    """
+    # Get CDR code
+    with open('CDR_codes', 'r') as myfile:
+        code = msgpack.unpackb(myfile.read())[ticker.split(' ')[1]]
+
+    # Get dates by CDR code
+    store = HDFStore('NonSettlementDates.h5')
+    df = store.select(code)
+    df = df[(df > start) & (df < stop)]
+    store.close()
+
+    return df.values
 
 
 def dropHolidaysFromIndex(ticker, index, offsets=[0]):
@@ -13,9 +31,8 @@ def dropHolidaysFromIndex(ticker, index, offsets=[0]):
     Gets exchange holidays for a given ticker and drops dates from the index for all offsets given
     Eg. offsets = [0,1] will drop all dates on and 1 business days after the holiday
     """
-
-    # Get holidays from Bloomberg
-    holidays = getExchangeHolidaysByTickers(ticker, index.min().date(), index.max().date())[ticker]
+    # Get non settlemtn dates
+    holidays = getNonSettlementDates(ticker, index.date.min(), index.date.max())
 
     # For each offset, drop holidays
     for offset in offsets:
@@ -31,7 +48,7 @@ def getExchangeTimesByTicker(ticker):
     """
     # Read file
     with open('exchangeTimes', 'r') as myfile:
-        return msgpack.unpackb(myfile.read())[ticker.split(' ')[1]]
+        return np.asarray(msgpack.unpackb(myfile.read())[ticker.split(' ')[1]])
 
 
 def getVWAPExcludeCodesByTicker(ticker):
@@ -40,7 +57,7 @@ def getVWAPExcludeCodesByTicker(ticker):
     """
     # Read file
     with open('VWAP_exclude_codes', 'r') as myfile:
-        return msgpack.unpackb(myfile.read())[ticker.split(' ')[1]]
+        return np.asarray(msgpack.unpackb(myfile.read())[ticker.split(' ')[1]])
 
 
 def getMarketCloseCodeByTicker(ticker):
@@ -49,7 +66,7 @@ def getMarketCloseCodeByTicker(ticker):
     """
     # Read file
     with open('market_close_codes', 'r') as myfile:
-        return msgpack.unpackb(myfile.read())[ticker.split(' ')[1]]
+        return np.asarray(msgpack.unpackb(myfile.read())[ticker.split(' ')[1]])
 
 
 def getTickDataPath():
@@ -108,12 +125,15 @@ def getVWAP(ticker, start, end, data=None):
     """
     Returns -1 if not trades occurred during the period
     """
-    # Get Exclude codes for ticker
-    codes = getVWAPExcludeCodesByTicker(ticker)
+    start = Timestamp(start)
+
+    # Go through 1s before end
+    end = Timestamp(end - timedelta(seconds=1))
 
     # If data supplied
     if data is not None:
-        trades = data[(data.index > start) & (data.index < end)]
+        trades = data[start:end]
+        # trades = data[(data.index > start) & (data.index < end)]
     else:
         # Load trades
         trades = getTickData(ticker, start=start, end=end)
@@ -121,12 +141,8 @@ def getVWAP(ticker, start, end, data=None):
     # If no trades occurred during the time period
     if trades.empty: return 0
 
-    # Filter out exclude codes
-    excludes = set(codes)
-    ix = trades.Codes.str.split(',').apply(lambda cs: not any(c in excludes for c in cs))
-    trades = trades[ix]
-    # trades['excl'] = trades.Codes.apply(lambda code: 1 if [elt for elt in code.split(',') if elt in codes] else 0)
-    # trades = trades[trades['excl'] == 0]
+    # Filter VWAP codes
+    trades = trades[trades.VWAP_Include]
 
     # If no trades occurred during the time period
     if trades.empty: return 0
@@ -206,7 +222,7 @@ def updateTickData(processMethod='multiprocess', core_multiplier=3):
     if processMethod == 'simple':
         # First equity names
         for security in securitylist:
-            updateHistoricalTickData(security)
+            BBG.updateHistoricalTickData(security)
 
     # If multiprocess, use multiprocessing library to speed up
     if processMethod == 'multiprocess':
@@ -214,4 +230,4 @@ def updateTickData(processMethod='multiprocess', core_multiplier=3):
 
         # Start multiprocessing Pool and map updates to pool
         p = Pool(processes=numProcesses)
-        p.map(updateHistoricalTickData, securitylist)
+        p.map(BBG.updateHistoricalTickData, securitylist)
