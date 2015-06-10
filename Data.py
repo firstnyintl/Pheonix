@@ -20,7 +20,7 @@ def getNonSettlementDates(ticker, start, stop):
     # Get dates by CDR code
     store = HDFStore('NonSettlementDates.h5')
     df = store.select(code)
-    df = df[(df > start) & (df < stop)]
+    df = df[(df >= start) & (df <= stop)]
     store.close()
 
     return df.values
@@ -48,7 +48,7 @@ def getExchangeTimesByTicker(ticker):
     """
     # Read file
     with open('exchangeTimes', 'r') as myfile:
-        return np.asarray(msgpack.unpackb(myfile.read())[ticker.split(' ')[1]])
+        return msgpack.unpackb(myfile.read())[ticker.split(' ')[1]]
 
 
 def getVWAPExcludeCodesByTicker(ticker):
@@ -63,10 +63,12 @@ def getVWAPExcludeCodesByTicker(ticker):
 def getMarketCloseCodeByTicker(ticker):
     """
     Code to look for when looking for last price at the close. Differs by exchange. Ticker like "MSFT US Equity"
+
+    Returns: string
     """
     # Read file
     with open('market_close_codes', 'r') as myfile:
-        return np.asarray(msgpack.unpackb(myfile.read())[ticker.split(' ')[1]])
+        return msgpack.unpackb(myfile.read())[ticker.split(' ')[1]]
 
 
 def getTickDataPath():
@@ -174,8 +176,9 @@ def getMarketClosePrices(ticker, index=None, data=None):
     # Get ticks
     ticks = getTickData(ticker, start=index.date.min(), end=(index.date.max() + timedelta(days=1)), code=code)
 
-    # Filter dates
-    return ticks.groupby(level=0).last().reindex(index, method='pad').Price
+    # Get unique trades by time 
+    ticks = ticks.ix[np.unique(ticks.index, return_index=True)[1]]
+    return ticks.reindex(index, method='pad').Price
 
 
 def getPrices(ticker, index, data=None):
@@ -187,7 +190,8 @@ def getPrices(ticker, index, data=None):
     """
     # If data supplied
     if data is not None:
-        return data.groupby(level=0).last().reindex(index, method='pad').Price
+        data = data.ix[np.unique(data.index, return_index=True)[1]]
+        return data.reindex(index, method='pad').Price
 
     # Convert index to datetimeindex
     index = DatetimeIndex(index, tz=pytz.timezone('America/New_York'))
@@ -200,8 +204,9 @@ def getPrices(ticker, index, data=None):
     # Get ticks
         ticks = getTickData(ticker, start=index.date.min(), end=(index.date.max() + timedelta(days=1)))
 
-    # Filter
-    return ticks.groupby(level=0).last().reindex(index, method='pad').Price
+    # Get unique trades by time
+    ticks = ticks.ix[np.unique(ticks.index, return_index=True)[1]]
+    return ticks.reindex(index, method='pad').Price
 
 
 def updateTickData(processMethod='multiprocess', core_multiplier=3):
