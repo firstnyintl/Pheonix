@@ -83,7 +83,7 @@ def backtest(strategy, days=100, date_range=None, data=None):
         # Create combined dataframe
         execution_rules = signals.join(execution_rules, on='Signal').drop('Signal', axis=1)
 
-        equity = 100000.
+        BP = 100000.
 
         # FIRST SIGNAL (SERIES)
         sig = execution_rules.ix[0]
@@ -92,7 +92,8 @@ def backtest(strategy, days=100, date_range=None, data=None):
         for action in sig:
             pdb.set_trace()
             security = action['Security']
-
+            last_price = data[security].Price.asof(timestamp)
+            size = BP / last_price
 
 
         # Build entry trades dataframe

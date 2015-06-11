@@ -209,15 +209,6 @@ def getPrices(ticker, index, data=None):
     return ticks.reindex(index, method='pad').Price
 
 
-def getLastPrice(ticker, timestamp, data=None):
-    """
-    Return last price for given ticker and timestamp
-    """
-    if data is not None:
-        
-
-
-
 def updateTickData(processMethod='multiprocess', core_multiplier=3):
     """
     Update Tick Data to HDF5 files for selected securities
