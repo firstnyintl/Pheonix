@@ -127,8 +127,37 @@ def updateHistoricalTickData(security, max_days_back=120, minute_interval=1):
                 }
                 rows_list.append(row)
 
+        # For futures
+        if security.split(' ')[-1] == 'Index':
+            tickDataArray = msg.getElement(blpapi.Name("tickData"))
+            tickDataArray = tickDataArray.getElement(1)
+
+            # Create list that will hold dictionarys representing rows
+            rows_list = []
+
+            # Loop through all trades
+            for eventData in tickDataArray.values():
+
+                # Get time, convert to EST
+                time = eventData.getElement(0).getValue(0)
+                time = pytz.timezone('UTC').localize(time).astimezone(pytz.timezone('America/New_York'))
+                price = eventData.getElement(2).getValue(0)
+                size = eventData.getElement(3).getValue(0)
+                try: codesString = eventData.getElement(4).getValue(0)
+                except: codesString = ''
+
+                # Convert codes
+                row = {
+                    'Price': price,
+                    'Size': size,
+                    'Codes': codesString,
+                    'Time': time,
+                }
+                rows_list.append(row)
+
+
         # For FX
-        if security.split(' ')[-1] == 'Curncy':
+        if security.split(' ')[-1]  == 'Curncy':
             barDataArray = msg.getElement(blpapi.Name("barData"))
             barDataArray = barDataArray.getElement(1)
 
@@ -167,7 +196,7 @@ def updateHistoricalTickData(security, max_days_back=120, minute_interval=1):
     today = pytz.timezone('America/New_York').localize(today).astimezone(pytz.timezone('UTC'))
 
     # If stock, get tick data
-    if security.split(' ')[-1] == 'Equity':
+    if security.split(' ')[-1] in ['Equity', 'Index']:
         # Set request info
         request = refDataService.createRequest("IntradayTickRequest")
         request.set('security', security)
@@ -178,7 +207,7 @@ def updateHistoricalTickData(security, max_days_back=120, minute_interval=1):
         request.set("includeConditionCodes", "True")
 
     # If currency, get bars
-    if security.split(' ')[-1] == 'Curncy':
+    if security.split(' ')[-1] in ['Curncy']:
         request = refDataService.createRequest("IntradayBarRequest")
         request.set('security', security)
         request.set("eventType", 'TRADE')

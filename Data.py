@@ -209,6 +209,15 @@ def getPrices(ticker, index, data=None):
     return ticks.reindex(index, method='pad').Price
 
 
+def getLastPrice(ticker, timestamp, data=None):
+    """
+    Return last price for given ticker and timestamp
+    """
+    if data is not None:
+        
+
+
+
 def updateTickData(processMethod='multiprocess', core_multiplier=3):
     """
     Update Tick Data to HDF5 files for selected securities
@@ -216,10 +225,11 @@ def updateTickData(processMethod='multiprocess', core_multiplier=3):
     ADRlist = pd.DataFrame.from_csv('ADR_test.csv')
     securitylist = []
 
-    # Add ADRs, ORDs, FX
+    # Add ADRs, ORDs, FX, Futures
     securitylist += ADRlist.index.values.tolist()
     securitylist += ADRlist.ORD.tolist()
     securitylist += ADRlist.FX.unique().tolist()
+    securitylist += ADRlist.Futures.unique().tolist()
 
     print "****** STARTING TICK DATA UPDATE ******"
 
@@ -236,3 +246,4 @@ def updateTickData(processMethod='multiprocess', core_multiplier=3):
         # Start multiprocessing Pool and map updates to pool
         p = Pool(processes=numProcesses)
         p.map(BBG.updateHistoricalTickData, securitylist)
+
