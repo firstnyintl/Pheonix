@@ -1,0 +1,130 @@
+ADR,ORD,FX,Futures,Ratio,Turn_Short,Turn_Long
+ABB US Equity,ABBN VX Equity,CHF Curncy,SMA Index,1,0.05,0.05
+NVS US Equity,NOVN VX Equity,CHF Curncy,SMA Index,1,0.05,0.05
+CS US Equity,CSGN VX Equity,CHF Curncy,SMA Index,1,0.05,0.05
+JBAXY US Equity,BAER VX Equity,CHF Curncy,SMA Index,0.2,0.05,0.05
+HCMLY US Equity,HOLN VX Equity,CHF Curncy,SMA Index,0.2,0.05,0.05
+SSREY US Equity,SREN VX Equity,CHF Curncy,SMA Index,1,0.05,0.05
+CFRUY US Equity,CFR VX Equity,CHF Curncy,SMA Index,0.1,0.05,0.05
+NSRGY US Equity,NESN VX Equity,CHF Curncy,SMA Index,1,0.05,0.05
+RHHBY US Equity,ROG VX Equity,CHF Curncy,SMA Index,0.125,0.05,0.05
+NVO US Equity,NOVOB DC Equity,DKK Curncy,KFX Index,1,0.05,0.05
+VWDRY US Equity,VWS DC Equity,DKK Curncy,KFX Index,0.333333,0.05,0.05
+ING US Equity,INGA NA Equity,EUR Curncy,ESA Index,1,0.05,0.05
+ASML US Equity,ASML NA Equity,EUR Curncy,ESA Index,1,0,0
+ALU US Equity,ALU FP Equity,EUR Curncy,ESA Index,1,0.05,0.05
+MT US Equity,MT NA Equity,EUR Curncy,ESA Index,1,0.05,0.05
+FCAU US Equity,FCA IM Equity,EUR Curncy,ESA Index,1,0,0
+ORAN US Equity,ORA FP Equity,EUR Curncy,ESA Index,1,0.05,0.05
+SAP US Equity,SAP GR Equity,EUR Curncy,ESA Index,1,0.05,0.05
+BUD US Equity,ABI BB Equity,EUR Curncy,ESA Index,1,0.05,0.05
+DB US Equity,DBK GR Equity,EUR Curncy,ESA Index,1,0,0
+NOK US Equity,NOK1V FH Equity,EUR Curncy,ESA Index,1,0.05,0.05
+UN US Equity,UNA NA Equity,EUR Curncy,ESA Index,1,0.05,0.05
+CNHI US Equity,CNHI IM Equity,EUR Curncy,ESA Index,1,0,0
+TS US Equity,TEN IM Equity,EUR Curncy,ESA Index,2,0.05,0.05
+PHG US Equity,PHIA NA Equity,EUR Curncy,ESA Index,1,0.05,0.05
+QGEN US Equity,QIA GR Equity,EUR Curncy,ESA Index,1,0,0
+SAN US Equity,SAN SM Equity,EUR Curncy,ESA Index,1,0.05,0.05
+TOT US Equity,FP FP Equity,EUR Curncy,ESA Index,1,0.05,0.05
+SNY US Equity,SAN FP Equity,EUR Curncy,ESA Index,0.5,0.05,0.05
+TEF US Equity,TEF SM Equity,EUR Curncy,ESA Index,1,0.05,0.05
+E US Equity,ENI IM Equity,EUR Curncy,ESA Index,2,0.05,0.05
+NBG US Equity,ETE GA Equity,EUR Curncy,ESA Index,1,0.05,0.05
+DTEGY US Equity,DTE GR Equity,EUR Curncy,ESA Index,1,0.05,0.05
+BASFY US Equity,BAS GR Equity,EUR Curncy,ESA Index,1,0.05,0.05
+BAYRY US Equity,BAYN GR Equity,EUR Curncy,ESA Index,1,0.05,0.05
+AZSEY US Equity,ALV GR Equity,EUR Curncy,ESA Index,0.1,0.05,0.05
+DPSGY US Equity,DPW GR Equity,EUR Curncy,ESA Index,1,0.05,0.05
+BAMXY US Equity,BMW GR Equity,EUR Curncy,ESA Index,0.3333333,0.05,0.05
+CTTAY US Equity,CON GR Equity,EUR Curncy,ESA Index,0.2,0.05,0.05
+CRZBY US Equity,CBK GR Equity,EUR Curncy,ESA Index,1,0.05,0.05
+EONGY US Equity,EOAN GR Equity,EUR Curncy,ESA Index,1,0.05,0.05
+BNPQY US Equity,BNP FP Equity,EUR Curncy,ESA Index,0.5,0.05,0.05
+REPYY US Equity,REP SM Equity,EUR Curncy,ESA Index,1,0.05,0.05
+AXAHY US Equity,CS FP Equity,EUR Curncy,ESA Index,1,0.05,0.05
+ISNPY US Equity,ISP IM Equity,EUR Curncy,ESA Index,6,0.05,0.05
+LVMUY US Equity,MC FP Equity,EUR Curncy,ESA Index,0.2,0.05,0.05
+LRLCY US Equity,OR FP Equity,EUR Curncy,ESA Index,0.2,0.05,0.05
+SBGSY US Equity,SU FP Equity,EUR Curncy,ESA Index,0.2,0.05,0.05
+DANOY US Equity,BN FP Equity,EUR Curncy,ESA Index,0.2,0.05,0.05
+GDFZY US Equity,GSZ FP Equity,EUR Curncy,ESA Index,1,0.05,0.05
+TI US Equity,TIT IM Equity,EUR Curncy,ESA Index,10,0.05,0.05
+VIVHY US Equity,VIV FP Equity,EUR Curncy,ESA Index,1,0.05,0.05
+DDAIY US Equity,DAI GR Equity,EUR Curncy,ESA Index,1,0.05,0.05
+SCGLY US Equity,GLE FP Equity,EUR Curncy,ESA Index,0.2,0.05,0.05
+RDS/A US Equity,RDSA NA Equity,EUR Curncy,ESA Index,2,0.05,0.05
+ARMH US Equity,ARM LN Equity,GBP Curncy,Z A Index,3,100bps,0.05
+NGG US Equity,NG/ LN Equity,GBP Curncy,Z A Index,5,100bps,0.05
+SHPG US Equity,SHP LN Equity,GBP Curncy,Z A Index,3,100bps,0.05
+RIO US Equity,RIO LN Equity,GBP Curncy,Z A Index,1,100bps,0.05
+GSK US Equity,GSK LN Equity,GBP Curncy,Z A Index,2,100bps,0.05
+BP US Equity,BP/ LN Equity,GBP Curncy,Z A Index,6,100bps,0.05
+GOLD US Equity,RRS LN Equity,GBP Curncy,Z A Index,1,100bps,0.05
+VOD US Equity,VOD LN Equity,GBP Curncy,Z A Index,10,100bps,0.05
+BCS US Equity,BARC LN Equity,GBP Curncy,Z A Index,4,100bps,0.05
+LYG US Equity,LLOY LN Equity,GBP Curncy,Z A Index,4,100bps,0.05
+RBS US Equity,RBS LN Equity,GBP Curncy,Z A Index,2,100bps,0.05
+AZN US Equity,AZN LN Equity,GBP Curncy,Z A Index,1,100bps,0.05
+HSBC US Equity,HSBA LN Equity,GBP Curncy,Z A Index,5,100bps,0.05
+TSCDY US Equity,TSCO LN Equity,GBP Curncy,Z A Index,3,100bps,0.05
+GLNCY US Equity,GLEN LN Equity,GBP Curncy,Z A Index,2,100bps,0.05
+BBL US Equity,BLT LN Equity,GBP Curncy,Z A Index,2,100bps,0.05
+BTI US Equity,BATS LN Equity,GBP Curncy,Z A Index,2,100bps,0.05
+RCL US Equity,RCL NO Equity,NOK Curncy,OIA Index,1,0,0
+STO US Equity,STL NO Equity,NOK Curncy,OIA Index,1,0.05,0.05
+SDRL US Equity,SDRL NO Equity,NOK Curncy,OIA Index,1,0,0
+TELNY US Equity,TEL NO Equity,NOK Curncy,OIA Index,3,0.05,0.05
+DNHBY US Equity,DNB NO Equity,NOK Curncy,OIA Index,10,0.05,0.05
+NHYDY US Equity,NHY NO Equity,NOK Curncy,OIA Index,1,0.05,0.05
+ERIC US Equity,ERICB SS Equity,SEK Curncy,ZMOA Index,1,0.05,0.05
+IPXHY US Equity,1605 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+DWAHY US Equity,1925 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+SKHSY US Equity,1928 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+JGCCY US Equity,1963 JP Equity,JPY Curncy,NKA Index,2,0.05,0.05
+KNBWY US Equity,2503 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+SVNDY US Equity,3382 JP Equity,JPY Curncy,NKA Index,0.5,0.05,0.05
+AHKSY US Equity,3407 JP Equity,JPY Curncy,NKA Index,2,0.05,0.05
+SHECY US Equity,4063 JP Equity,JPY Curncy,NKA Index,0.25,0.05,0.05
+KCRPY US Equity,4452 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+TKPYY US Equity,4502 JP Equity,JPY Curncy,NKA Index,0.5,0.05,0.05
+ALPMY US Equity,4503 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+DSNKY US Equity,4568 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+YAHOY US Equity,4689 JP Equity,JPY Curncy,NKA Index,2,0.05,0.05
+FUJIY US Equity,4901 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+SSDOY US Equity,4911 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+BRDCY US Equity,5108 JP Equity,JPY Curncy,NKA Index,0.5,0.05,0.05
+ASGLY US Equity,5201 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+NSSMY US Equity,5401 JP Equity,JPY Curncy,NKA Index,10,0.05,0.05
+JPSWY US Equity,5631 JP Equity,JPY Curncy,NKA Index,2,0.05,0.05
+KMTUY US Equity,6301 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+KUBTY US Equity,6326 JP Equity,JPY Curncy,NKA Index,5,0.05,0.05
+DKILY US Equity,6367 JP Equity,JPY Curncy,NKA Index,2,0.05,0.05
+HTHIY US Equity,6501 JP Equity,JPY Curncy,NKA Index,10,0.05,0.05
+SHCAY US Equity,6753 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+SNE US Equity,6758 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+ATE US Equity,6857 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+DNZOY US Equity,6902 JP Equity,JPY Curncy,NKA Index,0.5,0.05,0.05
+KYO US Equity,6971 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+NSANY US Equity,7201 JP Equity,JPY Curncy,NKA Index,2,0.05,0.05
+TM US Equity,7203 JP Equity,JPY Curncy,NKA Index,2,0.05,0.05
+MZDAY US Equity,7261 JP Equity,JPY Curncy,NKA Index,0.5,0.05,0.05
+HMC US Equity,7267 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+NINOY US Equity,7731 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+OCPNY US Equity,7733 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+CAJ US Equity,7751 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+DNPLY US Equity,7912 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+NTDOY US Equity,7974 JP Equity,JPY Curncy,NKA Index,0.125,0.05,0.05
+ITOCY US Equity,8001 JP Equity,JPY Curncy,NKA Index,2,0.05,0.05
+SSUMY US Equity,8053 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+MSBHY US Equity,8058 JP Equity,JPY Curncy,NKA Index,2,0.05,0.05
+MTU US Equity,8306 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+SMFG US Equity,8316 JP Equity,JPY Curncy,NKA Index,0.2,0.05,0.05
+NMR US Equity,8604 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+MSADY US Equity,8725 JP Equity,JPY Curncy,NKA Index,0.5,0.05,0.05
+TKOMY US Equity,8766 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+EJPRY US Equity,9020 JP Equity,JPY Curncy,NKA Index,0.1666667,0.05,0.05
+NTT US Equity,9432 JP Equity,JPY Curncy,NKA Index,0.5,0.05,0.05
+DCM US Equity,9437 JP Equity,JPY Curncy,NKA Index,1,0.05,0.05
+SOMLY US Equity,9735 JP Equity,JPY Curncy,NKA Index,0.25,0.05,0.05
+SFTBY US Equity,9984 JP Equity,JPY Curncy,NKA Index,0.5,0.05,0.05

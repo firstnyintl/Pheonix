@@ -7,10 +7,11 @@ from concurrent import futures
 from datetime import timedelta, date, time, datetime
 import pandas as pd
 import Indicator
-from Data import getVWAP, getPrices, getExchangeTimesByTicker, getTickData
+from Data import getVWAP, getPrices, getExchangeTimesByTicker, getTickData, getTimezoneByTicker
 from ADR import getADRFX, getORD, calcADREquiv, getUniverse, getWorstCaseTurn, getADRTable
 from Strategy import ADR_basic
 import Trade
+from Order import Order
 
 
 def buildDateRange(days):
@@ -36,12 +37,12 @@ def buildSignals(strategy, date_range, data):
     Builds signals DataFrame
     """
     # Get indicator names and signal rules
-    indicator_names = strategy.indicatorNames
+    indicator_list = strategy.indicatorNames
     signal_rules = strategy.signalRules
 
     # Get indicators
     indicators = pd.DataFrame()
-    for name in indicator_names:
+    for name in indicator_list:
         indicator = getattr(Indicator, name)
         referenceTicker = getattr(strategy, indicator.buildingSecurity)
         indicator = indicator(referenceTicker, start=date_range.min().date(), end=date_range.max().date(), data=data)
@@ -90,11 +91,21 @@ def backtest(strategy, days=100, date_range=None, data=None):
         timestamp = sig.name
 
         for action in sig:
-            pdb.set_trace()
+            # Get security
             security = action['Security']
-            last_price = data[security].Price.asof(timestamp)
-            size = BP / last_price
 
+            # Get last price
+            last_price = data[security].Price.asof(timestamp)
+
+            # Get even shares
+            size = int(BP / last_price)
+
+            # Build order timestamp (send order immediately)
+            ts = timestamp
+
+            pdb.set_trace()
+            # Build Order
+            order = Order(security, size, action['Order_type'], ts, action['Order_algo'], action['Order_algo_params'])
 
         # Build entry trades dataframe
         entry_trades = pd.DataFrame(columns=['Security', 'Type', 'VWAP Start', 'VWAP End', 'Price'], index=signals.index)

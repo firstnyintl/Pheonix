@@ -23,15 +23,13 @@ class ADR_basic:
                                'Security': self.ADR,
                                'Allocation': 1.,
                                'Order_type': 'Short',
-                               'Order_day_offset': 0,
                                'Order_algo': 'VWAP',
-                               'Order_algo_params': ('time_range', (time(15, 30), time(16, 00)))},
+                               'Order_algo_params': ('until_close')},
 
                               {'Action': 'Trade',
                                'Security': self.FX,
                                'Allocation': 1.,
                                'Order_type': 'Buy',
-                               'Order_day_offset': 0,
                                'Order_algo': 'Instant',
                                'Order_algo_params': None},
 
@@ -39,7 +37,6 @@ class ADR_basic:
                                'Security': self.ORD,
                                'Allocation': 1.,
                                'Order_type': 'Buy',
-                               'Order_day_offset': 1,
                                'Order_algo': 'VWAP',
                                'Order_algo_params': ('after_open', 2.)}],
             },
@@ -49,15 +46,13 @@ class ADR_basic:
                                'Security': self.ADR,
                                'Allocation': 1.,
                                'Order_type': 'Buy',
-                               'Order_day_offset': 0,
                                'Order_algo': 'VWAP',
-                               'Order_algo_params': ('time_range', (time(15, 30), time(16, 00)))},
+                               'Order_algo_params': ('until_close')},
 
                               {'Action': 'Trade',
                                'Security': self.FX,
                                'Allocation': 1.,
                                'Order_type': 'Sell',
-                               'Order_day_offset': 0,
                                'Order_algo': 'Instant',
                                'Order_algo_params': None},
 
@@ -65,7 +60,6 @@ class ADR_basic:
                                'Security': self.ORD,
                                'Allocation': 1.,
                                'Order_type': 'Short',
-                               'Order_day_offset': 1,
                                'Order_algo': 'VWAP',
                                'Order_algo_params': ('after_open', 2.)}]
             }

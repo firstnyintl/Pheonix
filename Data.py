@@ -44,11 +44,18 @@ def dropHolidaysFromIndex(ticker, index, offsets=[0]):
 
 def getExchangeTimesByTicker(ticker):
     """
-    Bloomberg trade codes to ignore during VWAP calculations. Ticker like "MSFT US Equity"
+    Returns open, close, and timezone for exchange given ticker
     """
     # Read file
     with open('exchangeTimes', 'r') as myfile:
         return msgpack.unpackb(myfile.read())[ticker.split(' ')[1]]
+
+
+def getTimezoneByTicker(ticker):
+    """
+    Get pytz timezone string for a given ticker
+    """
+    return getExchangeTimesByTicker(ticker)['zone']
 
 
 def getVWAPExcludeCodesByTicker(ticker):
