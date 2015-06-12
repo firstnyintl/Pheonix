@@ -1,13 +1,5 @@
-test.py~
+*.py~
 *.pyc
 test.py
-DB.h5
 *.profile
-*.h5
-*.h5
-DB.h5
-*.py~
-DB.h5
 ADR.csv
-ADR_test.csv
-*.csv
