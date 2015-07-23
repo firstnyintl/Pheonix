@@ -1,0 +1,385 @@
+#:import getFX ADR.getADRFX
+#:import getORD ADR.getORD
+#:import getRatio ADR.getADRRatio
+#:import getFutures ADR.getFutures
+#:import getTurn ADR.getWorstCaseTurn
+#:import getUniverse ADR.getUniverse
+#:import np numpy
+#:import pdb pdb
+#:import TimeFormatCyclicRoulette kivy.garden.roulette.TimeFormatCyclicRoulette
+
+<ADRSelect@GridLayout>:
+    adr: adr_spinner.adr
+    rows: 1
+    cols: 2
+    GridLayout:
+        size_hint_x: .2
+        rows: 2
+        cols: 1
+        Label:
+            size_hint_y: .25
+            text: 'Select ADR:'
+        ADRSpinner:
+            id: adr_spinner
+    GridLayout:
+        rows: 2
+        cols: 1
+        Label:
+            size_hint_y: .25
+            text: 'ADR Info:'
+        ADRBasicInfo:
+            id: adr_info
+            adr: root.adr
+
+<ADRSpinner@Spinner>:
+    adr: self.text + ' US Equity'
+    values: [x.split(' ')[0] for x in getUniverse()]
+    text: self.values[0]
+
+<ADRBasicInfo@GridLayout>:
+    adr: None    
+    rows: 6
+    cols: 2
+    Label:
+        text: 'ORD:'
+    Label:
+        id: ORD
+        text: ' '.join(getORD(root.adr).split(' ')[:2]) if root.adr else ''
+    Label:
+        text: 'FX:'
+    Label:
+        id: FX
+        text: ' '.join(getFX(root.adr).split(' ')[:1]) if root.adr else ''
+    Label:
+        text: 'Ratio:'
+    Label:
+        id: Ratio
+        text: str(getRatio(root.adr)) if root.adr else ''
+    Label:
+        text: 'Max. Turn (Long):'
+    Label:
+        id: Max_Turn_Long
+        text: str(getTurn(root.adr, 'Buy')) if root.adr else ''
+    Label:
+        text: 'Max. Turn (Short):'
+    Label:
+        id: Max_Turn_Short
+        text: str(getTurn(root.adr, 'Short')) if root.adr else ''
+    Label:
+        text: 'Futures:'
+    Label:
+        id: Futures
+        text: ' '.join(getFutures(root.adr).split(' ')[:1]) if root.adr else ''
+
+<TestOptions@GridLayout>:
+    rows: 2
+    cols: 1
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: 'Automatic FX'
+        CheckBox:
+            id: auto_fx    
+            active: True
+    GridLayout:
+        rows: 1
+        cols: 2
+        Label:
+            text: 'Number of days to backtest:'
+        GridLayout:
+            rows: 2
+            cols: 1
+            Label:
+                text: str(int(days_slider.value))    
+            Slider:
+                id: days_slider    
+                min: 1
+                max: 100
+                value: 50
+
+<TimeParamInputField>:
+    TextInput:
+        id: hour
+        size_hint: (0.3, .7)
+        pos_hint: {'x': 0, 'center_y': .5}
+        hint_text: 'Hour'
+        input_filter: 'int'
+    Label:
+        size_hint: (0.03, .7)
+        bold: True
+        pos_hint: {'x': .32, 'center_y': .5}
+        text: ':'
+    TextInput:
+        id: minute
+        size_hint: (0.3, .7)
+        pos_hint: {'x': .37, 'center_y': .5}
+        hint_text: 'Minute'
+        input_filter: 'int'
+    Spinner:
+        id: am_pm    
+        size_hint: (0.25, .7)
+        pos_hint: {'x': .75, 'center_y': .5}
+        values: ['AM', 'PM']
+        text: self.values[0]
+
+<Condition>:
+    # canvas:
+    #     Color:
+    #         rgba: 255, 0, 0, 1
+    #     Rectangle:
+    #         pos: self.pos
+    #         size: self.size
+    Spinner:
+        id: indicator
+        values: root.getIndicatorList()
+        text: 'Select Indicator'
+        pos_hint: {'x': 0.1, 'center_y': .5}
+        size_hint: (.15, .7)
+    Spinner:
+        id: logic
+        values: ['<', '<=', '=', '>=', '>']
+        text: self.values[0]
+        pos_hint: {'x': 0.4, 'center_y': .5}
+        size_hint: (.15, .7)
+    TextInput:
+        id: value
+        pos_hint: {'x': .7, 'center_y': .5}
+        size_hint: (.10, .7)
+        hint_text: 'percent (%)'
+        input_filter: 'float'
+    Button:
+        pos_hint: {'right': .98, 'center_y': .5}
+        size_hint: (.05, .5)
+        text: '-'
+        on_press: root.parent.parent.remove_condition(root)
+
+<ActionField@GridLayout>:
+    rows: 2
+    cols: 1
+    Label:
+        text: 'Action:'
+        size_hint: (1, .2)
+    Spinner:
+        values: ['Buy', 'Sell', 'Short']
+        text: self.values[0]
+        size: (100, 44)
+        size_hint: (1, .8)
+
+<SecurityField@GridLayout>:
+    rows: 2
+    cols: 1
+    security: spinner.text
+    Label:
+        text: 'Security:'
+        size_hint: (1, .2)
+    Spinner:
+        id: spinner    
+        values: ['ADR', 'ORD', 'ORD Futures']
+        text: 'Select'
+        on_text: root.parent.ids['execution'].ids['broker'].updateBrokers(self.text)
+        size: (100, 44)
+        size_hint: (1, .8)
+
+<BrokerField>:
+    adr: self.parent.parent.adr
+    rows: 2
+    cols: 1
+    Label:
+        text: 'Broker:'
+        size_hint: (1, .2)
+    Spinner:
+        id: brokers
+        text: 'Select'
+        on_text: root.updateBrokerStrategies(self.text)
+        size: (100, 44)
+        size_hint: (1, .8)
+
+<ExecutionField@GridLayout>:
+    adr: self.parent.adr
+    cols: 1
+    rows: 2
+    Label:
+        text: 'Platform (EMSX)'
+    GridLayout:
+        rows: 1
+        cols: 3
+        BrokerField:
+            id: broker
+        Spinner:
+            id: strategy
+
+<Consequent@GridLayout>:
+    adr: self.parent.adr
+    rows: 1
+    cols: 5
+    spacing: [10, 0]
+    ActionField:
+        id: action
+    SecurityField:
+        id: security
+    ExecutionField:
+        id: execution
+    # GridLayout:
+    #     rows: 2
+    #     cols: 1
+    #     Label:
+    #         text: 'Start:'
+    #         size_hint: (1, .2)
+    #     Label:
+    #         text: 'Now'
+    #         bold: True
+    #         size: (100, 44)
+    #         size_hint: (1, .8)
+    # GridLayout:
+    #     rows: 2
+    #     cols: 1
+    #     Label:
+    #         text: 'End:'
+    #         size_hint: (1, .2)
+    #     Spinner:
+    #         values: np.asarray(['MktClose', '+5', '+10', '+15', '+30', '+60', '+90', '+120'])
+    #         text: self.values[0]
+    #         size: (100, 44)
+    #         size_hint: (1, .8)
+
+<SignalConditions>:
+    canvas:
+        Line:
+            points: [self.width*0.02, self.height*0.93, self.width*1, self.height*0.93]
+            width: 1.2
+    Button:
+        pos_hint: {'center_x': .96, 'center_y': 1.025}
+        text: 'X'
+        size: (20, 20)
+        size_hint: (None, None)
+        on_release: root.parent_popup.dismiss()
+    FloatLayout:
+        id: conditions
+        # canvas:
+        #     Color:
+        #         rgba: 1, 1, 1, 1
+        #     Rectangle:
+        #         pos: self.pos
+        #         size: self.size
+        pos_hint: {'x': 0.02, 'y': 0.12}
+        size_hint: (.96, .80)
+    FloatLayout:
+        id: listen_params
+        # canvas:
+        #     Color:
+        #         rgba: 255, 0, 0, 1
+        #     Rectangle:
+        #         pos: self.pos
+        #         size: self.size
+        pos_hint: {'x': 0.02, 'y': 0.93}
+        size_hint: (.7, .06)
+        Label:
+            text: 'Listen for signal'
+            pos_hint: {'x': 0, 'center_y': .5}
+            size_hint: (0.25, 1)
+        TimeParamInputField:
+            pos_hint: {'x': .27, 'center_y': .5}
+            size_hint: (0.25, 1)
+        Label:
+            text: '-'
+            bold: True
+            pos_hint: {'x': .55, 'center_y': .5}
+            size_hint: (0.1, 1)
+        TimeParamInputField:
+            pos_hint: {'x': .68, 'center_y': .5}
+            size_hint: (0.25, 1)
+    Button:
+        pos_hint: {'right': .98, 'y': 0.94}
+        size_hint: (.25, .04)
+        text: '+ Add Condition +'
+        on_release: root.add_condition()
+    GridLayout:
+        pos_hint: {'x': .02, 'y': 0.02}
+        size_hint: (.96, .08)
+        cols: 2
+        rows: 1
+        TextInput:
+            id: signal_name
+            hint_text: 'Signal Name'
+        Button:
+            text: 'Save and add'
+            on_release: root.add_signal()
+
+<SignalBox>:
+    rows: 1
+    cols: 4
+    signal: ''
+    Label:
+        id: name
+        text: root.signal[0] if root.signal else ''
+    Button:
+        id: edit
+        text: 'Edit'
+        on_release: root.edit_signal()
+    Button:
+        id: delete
+        text: 'Delete'
+        on_release: root.remove_signal()
+    Button:
+        id: execution
+        text: 'Add execution'
+
+<Signals>:
+    rows: 1
+    cols: 1
+    Button:
+        size_hint_y: 0.2
+        text: 'New Signal'
+        on_release: root.newSignal()
+
+<CreateStrategyWindow>:
+    GridLayout:
+        pos_hint: {'x': .5, 'y': .8}
+        size_hint: (.2, .1)
+        cols: 3
+        rows: 1
+        Label:
+            text: 'Strat. Type'
+        Spinner:
+            id: strategy_type    
+            values: ['ADR/Local']
+            text: self.values[0]
+        Button:
+            text: 'Settings'
+            on_release: app.open_settings()
+    Signals:
+        id: signals
+        pos_hint: {'x': .4, 'y': 0.3}
+        size_hint: (.4, .4)
+    GridLayout:
+        id: save_strategy
+        cols: 2
+        rows: 1
+        pos_hint: {'x': 0.02, 'y': 0.02}
+        size_hint: (0.2, 0.1)
+        TextInput:
+            id: strategy_name
+            hint_text: 'Strategy Name'
+        Button:    
+            text: 'Save Strategy'
+            on_release: root.save_strategy(app.settings)
+
+    # adr: adr_select.adr
+    # rows: 3
+    # cols: 1
+    # GridLayout:
+    #     size_hint_y: .25
+    #     rows: 1
+    #     cols: 2
+    #     ADRSelect:
+    #         id: adr_select
+    #     TestOptions:
+    #         id: test_options
+    # Expression:
+    #     size_hint_y: .65        
+    #     id: expressions
+    #     adr: root.adr
+    # Button:
+    #     text: 'Run Backtest'
+    #     size_hint_y: .1
+    #     on_press: root.doBacktest(root)

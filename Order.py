@@ -1,37 +1,23 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+from Data import getMarketOpen, getMarketClose
 import pdb
 import pytz
-from Data import getExchangeTimesByTicker
 
 
-class Order:
+def buildOrder(security, size, timestamp, order_type, algo, params, broker='Tradebook'):
+    """
+    Build Order according to BBG Tradebook parameters
+    """
+    # For now assume Tradebook
+    if broker == 'Tradebook':
 
-    def __init__(self, security, size, order_type, timestamp, algo, params):
+        if algo == 'VWAP':
 
-        self.security = security
-        self.size = size
-        self.order_type = order_type
-        self.date = timestamp
-        self.algo = algo
-        self.params = params
+            if params[0] == 'until_close':
+                start = 'Now'
+                end = 'MktClose'
 
-        exchange_info = getExchangeTimesByTicker(security)
-
-        # Build order
-        if self.algo == 'VWAP':
-
-            # Get interval type
-            interval = params[0]
-
-            if interval == 'until_close':
-
-                self.start = 'Now'
-                self.end = 'MktClose'
-
-            if interval == 'after_open':
-
-                self.start = '
-
-                self.start_time
-
+            if params[0] == 'after_open':
+                start = 'MktOpen'
+                end = '+'
                 pdb.set_trace()

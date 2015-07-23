@@ -186,7 +186,7 @@ def updateHistoricalTickData(security, max_days_back=120, minute_interval=1):
     refDataService = session.getService("//blp/refdata")
 
     # Set HDF5 info
-    DBfile = 'E:/TickData/' + security.replace(' ', '_').replace('/', '-') + '.h5'
+    DBfile = Data.getTickDataPath() + security.replace(' ', '_').replace('/', '-') + '.h5'
     store = pd.HDFStore(DBfile)
     dataset_path = 'ticks'
 
@@ -528,19 +528,27 @@ def endSession(session):
     session.stop()
 
 
-def startSubscriptions(session, security, field, interval=0):
-    """
-    Start a subscription
-    --------------------------
-    ARGS:
-    session - Session object
-    security - Security
-    field - Field
-    """
-    subscriptions = blpapi.SubscriptionList()
-    subscriptions.add(security, field, "interval=%s"%(interval), blpapi.CorrelationId(security))
-    session.subscribe(subscriptions)
+def startRTSubscriptions(universe, event_handler, interval=0):
 
+    session = createSession()
+    subscriptions = blpapi.SubscriptionList()
+
+    for name in universe:
+        subscriptions.add(name, "LAST_PRICE", "interval=%s"%(interval), blpapi.CorrelationId(name))
+
+    session.subscribe(subscriptions)
+    try:
+        eventCount = 0
+        while True:
+            # Specify timeout to give a chance for Ctrl-C
+            event = session.nextEvent(1000)
+            for msg in event:
+                if event.eventType() == blpapi.Event.SUBSCRIPTION_DATA:
+                    event_handler(msg)
+            if event.eventType() == blpapi.Event.SUBSCRIPTION_DATA:
+                eventCount += 1
+    finally:
+        session.stop()
 
 def formatDate(date):
     """

@@ -1,0 +1,523 @@
+#:import getFX ADR.getADRFX
+#:import getORD ADR.getORD
+#:import getRatio ADR.getADRRatio
+#:import getFutures ADR.getFutures
+#:import getTurn ADR.getWorstCaseTurn
+#:import getUniverse ADR.getUniverse
+#:import np numpy
+#:import pdb pdb
+
+<ADRSelect@GridLayout>:
+    adr: adr_spinner.adr
+    rows: 1
+    cols: 2
+    GridLayout:
+        size_hint_x: .2
+        rows: 2
+        cols: 1
+        Label:
+            size_hint_y: .25
+            text: 'Select ADR:'
+        ADRSpinner:
+            id: adr_spinner
+    GridLayout:
+        rows: 2
+        cols: 1
+        Label:
+            size_hint_y: .25
+            text: 'ADR Info:'
+        ADRBasicInfo:
+            id: adr_info
+            adr: root.adr
+
+<ADRSpinner@Spinner>:
+    adr: self.text + ' US Equity'
+    values: [x.split(' ')[0] for x in getUniverse()]
+    text: self.values[0]
+
+<ADRBasicInfo@GridLayout>:
+    adr: None    
+    rows: 6
+    cols: 2
+    Label:
+        text: 'ORD:'
+    Label:
+        id: ORD
+        text: ' '.join(getORD(root.adr).split(' ')[:2]) if root.adr else ''
+    Label:
+        text: 'FX:'
+    Label:
+        id: FX
+        text: ' '.join(getFX(root.adr).split(' ')[:1]) if root.adr else ''
+    Label:
+        text: 'Ratio:'
+    Label:
+        id: Ratio
+        text: str(getRatio(root.adr)) if root.adr else ''
+    Label:
+        text: 'Max. Turn (Long):'
+    Label:
+        id: Max_Turn_Long
+        text: str(getTurn(root.adr, 'Buy')) if root.adr else ''
+    Label:
+        text: 'Max. Turn (Short):'
+    Label:
+        id: Max_Turn_Short
+        text: str(getTurn(root.adr, 'Short')) if root.adr else ''
+    Label:
+        text: 'Futures:'
+    Label:
+        id: Futures
+        text: ' '.join(getFutures(root.adr).split(' ')[:1]) if root.adr else ''
+
+<TestOptions@GridLayout>:
+    rows: 2
+    cols: 1
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: 'Automatic FX'
+        CheckBox:
+            id: auto_fx    
+            active: True
+    GridLayout:
+        rows: 1
+        cols: 2
+        Label:
+            text: 'Number of days to backtest:'
+        GridLayout:
+            rows: 2
+            cols: 1
+            Label:
+                text: str(int(days_slider.value))    
+            Slider:
+                id: days_slider    
+                min: 1
+                max: 100
+                value: 50
+
+<TimeParamInputField@TextInput>:
+    rows: 1
+    cols: 3
+    TextInput:
+        id: hour
+        hint_text: 'Hour'
+        input_filter: 'int'
+    Label:
+        text: ':'
+    TextInput:
+        id: minute
+        hint_text: 'Minute'
+        input_filter: 'int'
+
+<IndicatorParamsField@GridLayout>:
+    rows: 1
+    cols: len(self.indicator.params) if self.indicator else 0
+    indicator: None
+    on_indicator: self.buildParamFields()
+
+<IndicatorField@GridLayout>:
+    rows: 1
+    cols: 2
+    GridLayout:
+        rows: 2
+        cols: 1
+        id: indicator
+        Label:
+            text: 'Indicator:'
+            size_hint: (1, .2)
+        Spinner:
+            id: spinner
+            values: root.getIndicatorList()
+            text: self.values[0]
+            size_hint: (1, .8)
+            size: (100, 44)
+    IndicatorParamsField:
+        id: params
+        indicator: self.getIndicator(spinner.text) if spinner.text else None
+
+<Antecedent@GridLayout>:
+    rows: 1
+    cols: 3
+    spacing: [10, 0]
+    IndicatorField:
+        id: indicator
+        indicator: 'ADR_Premium'
+    GridLayout:
+        rows: 2
+        cols: 1
+        Label:
+            text: 'Logic:'
+            size_hint: (1, .2)
+        Label:
+            text: '<'
+            bold: True
+            size: (100, 44)
+            size_hint: (1, .8)
+    GridLayout:
+        rows: 2
+        cols: 1
+        Label:
+            text: 'Value:'
+            size_hint: (1, .2)
+        Spinner:
+            values: [str(x) for x in np.round(np.arange(-0.02, 0.002, .002, dtype=float), decimals=5)[::-1]]
+            text: self.values[0]
+            size_hint: (1, .8)
+            size: (100, 44)
+
+<ActionField@GridLayout>:
+    rows: 2
+    cols: 1
+    Label:
+        text: 'Action:'
+        size_hint: (1, .2)
+    Spinner:
+        values: ['Buy', 'Sell', 'Short']
+        text: self.values[0]
+        size: (100, 44)
+        size_hint: (1, .8)
+
+<SecurityField@GridLayout>:
+    rows: 2
+    cols: 1
+    security: spinner.text
+    Label:
+        text: 'Security:'
+        size_hint: (1, .2)
+    Spinner:
+        id: spinner    
+        values: ['ADR', 'ORD', 'ORD Futures']
+        text: 'Select'
+        on_text: root.parent.ids['execution'].ids['broker'].updateBrokers(self.text)
+        size: (100, 44)
+        size_hint: (1, .8)
+
+<BrokerField@GridLayout>:
+    adr: self.parent.parent.adr
+    rows: 2
+    cols: 1
+    Label:
+        text: 'Broker:'
+        size_hint: (1, .2)
+    Spinner:
+        id: brokers
+        text: 'Select'
+        on_text: root.updateBrokerStrategies(self.text)
+        size: (100, 44)
+        size_hint: (1, .8)
+
+<ExecutionField@GridLayout>:
+    adr: self.parent.adr
+    cols: 1
+    rows: 2
+    Label:
+        text: 'Platform (EMSX)'
+    GridLayout:
+        rows: 1
+        cols: 3
+        BrokerField:
+            id: broker
+        Spinner:
+            id: strategy
+
+<Consequent@GridLayout>:
+    adr: self.parent.adr
+    rows: 1
+    cols: 5
+    spacing: [10, 0]
+    ActionField:
+        id: action
+    SecurityField:
+        id: security
+    ExecutionField:
+        id: execution
+    # GridLayout:
+    #     rows: 2
+    #     cols: 1
+    #     Label:
+    #         text: 'Start:'
+    #         size_hint: (1, .2)
+    #     Label:
+    #         text: 'Now'
+    #         bold: True
+    #         size: (100, 44)
+    #         size_hint: (1, .8)
+    # GridLayout:
+    #     rows: 2
+    #     cols: 1
+    #     Label:
+    #         text: 'End:'
+    #         size_hint: (1, .2)
+    #     Spinner:
+    #         values: np.asarray(['MktClose', '+5', '+10', '+15', '+30', '+60', '+90', '+120'])
+    #         text: self.values[0]
+    #         size: (100, 44)
+    #         size_hint: (1, .8)
+
+<Expression@GridLayout>:    
+    adr: ''
+    side: ''
+    rows: 6
+    cols: 1
+    spacing: [0, -30]
+    padding: 2
+    Antecedent:
+    Antecedent:
+    Consequent:
+
+# <Expressions@GridLayout>:
+#     adr: ''
+#     cols: 2
+#     rows: 1
+#     spacing: [50, 0]
+#     Expression:
+#         id: expression_long
+#     GridLayout:
+#         id: expression_short
+#         rows: 8
+#         cols: 1
+#         spacing: [0, -30]
+#         padding: 2
+#         Label:
+#             text: 'IF'
+#         GridLayout:
+#             rows: 1
+#             cols: 5
+#             spacing: [10, 0]
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Indicator:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: 'ADR_Premium'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'At time:'
+#                     size_hint: (1, .2)
+#                 Spinner:
+#                     id: at_time_long    
+#                     values: np.asarray(['13:00', '13:30', '14:00', '14:30', '15:00', '15:30'])
+#                     text: self.values[0]
+#                     size_hint: (1, .8)
+#                     size: (100, 44)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Logic:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: '>'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Value:'
+#                     size_hint: (1, .2)
+#                 Spinner:
+#                     values: [str(x) for x in np.round(np.arange(0, .022, .002, dtype=float), decimals=5)]
+#                     text: self.values[0]
+#                     size_hint: (1, .8)
+#                     size: (100, 44)
+#         Label:
+#             text: 'AND'
+#         GridLayout:
+#             rows: 1
+#             cols: 5
+#             spacing: [10, 0]
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Indicator:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: 'Futures_Return'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'At time:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: at_time_long.text
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Logic:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: '<'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Value:'
+#                     size_hint: (1, .2)
+#                 Spinner:
+#                     values: [str(x) for x in np.round(np.arange(0, .022, .002, dtype=float), decimals=5)]
+#                     text: self.values[0]
+#                     size_hint: (1, .8)
+#                     size: (100, 44)
+#         Label:
+#             text: 'IMMEDIATELY'
+#         GridLayout:
+#             rows: 1
+#             cols: 5
+#             spacing: [10, 0]
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Action:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: 'Short'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Security:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: ' '.join(getORD(root.adr + ' US Equity').split(' ')[:2]) if root.adr else ''
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Algo:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: 'VWAP'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Start:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: 'Now'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'End:'
+#                     size_hint: (1, .2)
+#                 Spinner:
+#                     values: np.asarray(['MktClose', '+5', '+10', '+15', '+30', '+60', '+90', '+120'])
+#                     text: self.values[0]
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#         GridLayout:
+#             rows: 1
+#             cols: 5
+#             spacing: [10, 0]
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Action:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: 'Buy'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Security:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: root.adr
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Algo:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: 'VWAP'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'Start:'
+#                     size_hint: (1, .2)
+#                 Label:
+#                     text: 'MktOpen'
+#                     bold: True
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+#             GridLayout:
+#                 rows: 2
+#                 cols: 1
+#                 Label:
+#                     text: 'End:'
+#                     size_hint: (1, .2)
+#                 Spinner:
+#                     values: np.asarray(['MktClose', '+5', '+10', '+15', '+30', '+60', '+90', '+120'])
+#                     text: self.values[0]
+#                     size: (100, 44)
+#                     size_hint: (1, .8)
+
+<BackTestLoadout>:
+    adr: adr_select.adr
+    rows: 3
+    cols: 1
+    GridLayout:
+        size_hint_y: .25
+        rows: 1
+        cols: 2
+        ADRSelect:
+            id: adr_select
+        TestOptions:
+            id: test_options
+    Expression:
+        size_hint_y: .65        
+        id: expressions
+        adr: root.adr
+    Button:
+        text: 'Run Backtest'
+        size_hint_y: .1
+        on_press: root.doBacktest(root)

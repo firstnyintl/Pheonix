@@ -1,18 +1,14 @@
 import pdb, traceback, sys
-from Backtest import globalBacktest, backtest, optimize, globalOptimization
-from Strategy import ADR_basic
-from BBG import updateHistoricalTickData
-from Data import updateTickData
+from BBG import startRTSubscriptions
+from ADR import getUniverse
+from Data import processRealTimeData, Memory
 
 if __name__ == '__main__':
     try:
-        # globalBacktest(method='multiprocess', load_data='upfront', core_multiplier=1)
-        backtest(ADR_basic('SDRL US Equity'))
-        # updateHistoricalTickData('SDRL US Equity')
-        # updateTickData()
-        # globalOptimization()
-        # optimize('SDRL US Equity')
-
+        memory = Memory()
+        universe = getUniverse()
+        event_handler = processRealTimeData
+        startRTSubscriptions(universe, event_handler, memory)
     except:
         type, value, tb = sys.exc_info()
         traceback.print_exc()

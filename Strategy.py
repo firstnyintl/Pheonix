@@ -1,7 +1,24 @@
+import os
 from datetime import datetime, time
 import pandas as pd
+import numpy as np
+import msgpack
 from Data import getNonSettlementDates, getTickData
-from ADR import getORD, getADRFX, getADRRatio
+from ADR import getORD, getADRFX, getADRRatio, getFutures, getUniverse
+import pdb
+
+
+def getStrategyDir():
+    return 'E:/dev/Pheonix/Strategies/'
+
+
+def getStrategyList():
+    return np.asarray(os.listdir(getStrategyDir()))
+
+
+def loadStrategy(name):
+    with open(getStrategyDir() + name) as f:
+        return msgpack.unpackb(f.read())
 
 
 class ADR_basic:
@@ -9,61 +26,15 @@ class ADR_basic:
     BASIC ADR/LOCAL STRATEGY
     """
 
-    def __init__(self, ADR):
+    def __init__(self, rules, ADR):
 
         self.ADR = ADR
         self.ORD = getORD(ADR)
         self.FX = getADRFX(ADR)
         self.Ratio = getADRRatio(ADR)
+        self.Futures = getFutures(ADR)
 
-        self.rules = {
-            'Premium': {
-                'Condition': {'indicator': 'ADR_Premium', 'logic': '>', 'value': .5},
-                'Execution': [{'Action': 'Trade',
-                               'Security': self.ADR,
-                               'Allocation': 1.,
-                               'Order_type': 'Short',
-                               'Order_algo': 'VWAP',
-                               'Order_algo_params': ('until_close')},
-
-                              {'Action': 'Trade',
-                               'Security': self.FX,
-                               'Allocation': 1.,
-                               'Order_type': 'Buy',
-                               'Order_algo': 'Instant',
-                               'Order_algo_params': None},
-
-                              {'Action': 'Trade',
-                               'Security': self.ORD,
-                               'Allocation': 1.,
-                               'Order_type': 'Buy',
-                               'Order_algo': 'VWAP',
-                               'Order_algo_params': ('after_open', 2.)}],
-            },
-            'Discount': {
-                'Condition': {'indicator': 'ADR_Premium', 'logic': '<', 'value': -.5,},
-                'Execution': [{'Action': 'Trade',
-                               'Security': self.ADR,
-                               'Allocation': 1.,
-                               'Order_type': 'Buy',
-                               'Order_algo': 'VWAP',
-                               'Order_algo_params': ('until_close')},
-
-                              {'Action': 'Trade',
-                               'Security': self.FX,
-                               'Allocation': 1.,
-                               'Order_type': 'Sell',
-                               'Order_algo': 'Instant',
-                               'Order_algo_params': None},
-
-                              {'Action': 'Trade',
-                               'Security': self.ORD,
-                               'Allocation': 1.,
-                               'Order_type': 'Short',
-                               'Order_algo': 'VWAP',
-                               'Order_algo_params': ('after_open', 2.)}]
-            }
-        }
+        self.rules = rules
 
     def processSignals(self, signals):
         """
@@ -90,28 +61,35 @@ class ADR_basic:
         Return dictionary of tick data required for strategy
         """
         data_dict = {}
-        for security in [self.ADR, self.ORD, self.FX]:
+        for security in [self.ADR, self.ORD, self.FX, self.Futures]:
             securityData = getTickData(security, date_range.date.min(), date_range.date.max() + pd.tseries.offsets.BDay())
             data_dict[security] = securityData
         return data_dict
 
     @property
-    def indicatorNames(self):
+    def indicators(self):
         """
-        Return list of indicator names used in strategy
+        Return list of indicators requried to build for strategy. String format 'Indicator(param)'
         """
-        return self.signalRules['indicator'].unique()
+        rules = self.signalRules
+        idx = pd.IndexSlice
+        return np.unique(rules.loc[:, idx[:, ['indicator']]].values)
+
 
     @property
     def signalRules(self):
         """
-        Return DataFrame of signal rules
+        Returns rules to generate signals with
         """
-        return pd.DataFrame(pd.DataFrame(self.rules).T.Condition.values.tolist(), index=pd.DataFrame(self.rules).T.index)
+        rules = self.rules.Antecedents.str.split(' ', expand=True).drop(3, axis=1).T
 
-    @property
-    def executionRules(self):
-        """
-        Return DataFrame of execution rules
-        """
-        return pd.DataFrame(pd.DataFrame(self.rules).T.Execution.values.tolist(), index=pd.DataFrame(self.rules).T.index)
+        antecedent_col = rules.columns.values
+        df_col = np.asarray(['indicator', 'logic', 'value'])
+        antecedent_col_arr = np.repeat(antecedent_col, len(df_col))
+        df_col_arr = np.tile(df_col, len(antecedent_col))
+        arrays = [antecedent_col_arr, df_col_arr]
+
+        rules.index = arrays
+        rules = rules.T
+
+        return rules

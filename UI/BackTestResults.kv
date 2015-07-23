@@ -1,0 +1,58 @@
+
+
+<BackTestResults>:
+    rows: 1
+    cols: 2
+    GridLayout:
+        id: left_col
+        cols: 1
+        rows: 2
+        GridLayout:
+            id: results_summary
+            cols: 2
+            rows: 8
+            Label:
+                text: 'Date Range: '
+            Label:
+                text: root.data.values()[0].index.min().date().strftime('%m/%d/%y') + ' - ' + root.data.values()[1].index.max().date().strftime('%m/%d/%y')
+            Label:
+                text: 'Long ADR trades: '
+            Label:
+                text: str(len(root.results[root.results['Buy/Sell ADR'] == 'Buy']))
+            Label:
+                text: 'Short ADR trades: '
+            Label:
+                text: str(len(root.results[root.results['Buy/Sell ADR'] == 'Short']))
+            Label:
+                text: 'Max. Net Profit: '
+            Label:
+                text: str(round(root.results['Net Profit (bps)'].max(), 2)) + ' (bps)'
+            Label:
+                text: 'Min. Net Profit: '
+            Label:
+                text: str(round(root.results['Net Profit (bps)'].min(), 2)) + ' (bps)'
+            Label:
+                text: 'Avg. Net Profit: '
+            Label:
+                text: str(round(root.results['Net Profit (bps)'].mean(), 2)) + ' (bps)'
+            Label:
+                text: 'Risk Adj. Avg. Net Profit: '
+            Label:
+                text: str(round(root.results['Net Profit (bps)'].mean() / root.results['Net Profit (bps)'].std(), 2)) + ' (bps)'
+            Label:
+                text: 'Speed'
+            Label:
+                text: str(root.speed) + ' (s)'
+        Image:
+            id: return_histogram        
+            source: root.hist_loc
+    GridLayout:
+        id: right_col
+        cols: 1
+        rows: 2
+        Image:
+            id: prices_chart
+            source: root.prices_loc
+        Image:
+            id: premium_chart
+            source: root.premium_loc

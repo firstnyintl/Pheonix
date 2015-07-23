@@ -1,13 +1,13 @@
 import pandas as pd
 from re import findall
-import pdb
+import numpy as np
 
 
 def getWorstCaseTurn(ticker, side, price=None):
     """
     Get Worst case turn cost for ADR
     """
-    reference = pd.DataFrame.from_csv('ADR_test.csv')
+    reference = getADRTable()
     # If long ADRs
     if side == 'Buy':
         cost = str(reference.ix[ticker].Turn_Long)
@@ -16,7 +16,9 @@ def getWorstCaseTurn(ticker, side, price=None):
         cost = str(reference.ix[ticker].Turn_Short)
     # If bps, calculate cost
     if 'bps' in cost:
-        cost = float(findall('\d+', cost)[0]) / 10000 * price
+        if price is None: return cost
+        else:
+            cost = float(findall('\d+', cost)[0]) / 10000 * price
     return float(cost)
 
 
@@ -24,10 +26,10 @@ def getADRTable():
     """
     Load DataFrame containing ADR universe and information
     """
-    return pd.DataFrame.from_csv('ADR_test.csv')
+    return pd.DataFrame.from_csv('E:/dev/Pheonix/ADR_test.csv')
 
 
-def getUniverse(data=None):
+def adr_universe(data=None):
     """
     Load DataFrame containing list of ADR tickers
     """
@@ -35,7 +37,21 @@ def getUniverse(data=None):
         reference = getADRTable()
     else:
         reference = data
-    return reference.index.values
+
+    return np.sort(reference.index.values)
+
+
+def full_universe():
+    """
+    Get list of ADRs, ORDs, Futures, FX
+    """
+    ADRs = adr_universe()
+    universe = []
+    universe += ADRs.tolist()
+    universe += [getORD(x) for x in ADRs]
+    universe += [getADRFX(x) for x in ADRs]
+    universe += [getFutures(x) for x in ADRs]
+    universe = np.unique(np.asarray(universe)).tolist()
 
 
 def getADRFX(ticker, data=None):
@@ -47,6 +63,17 @@ def getADRFX(ticker, data=None):
     else:
         reference = data
     return reference.ix[ticker].FX
+
+
+def getFutures(ticker, data=None):
+    """
+    Returns ADR ratio given ADR ticker
+    """
+    if data is None:
+        reference = getADRTable()
+    else:
+        reference = data
+    return reference.ix[ticker].Futures
 
 
 def getADRRatio(ticker, data=None):
@@ -88,7 +115,7 @@ def calcADREquiv(ORD_price, FX_price, ratio, FX):
         return ORD_price * ratio * FX_price
 
 
-def calcADRPremium(ADR_price, ORD_price, FX_price, ratio, FX, method='pct'):
+def calcADRPremium(ADR_price, ORD_price, FX_price, ratio, FX, method='abs'):
     """
     Calculate ADR vs Ord Premium (pct or abs)
     """

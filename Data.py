@@ -1,12 +1,20 @@
-from pandas import HDFStore, Timestamp, DatetimeIndex
-from datetime import timedelta, datetime
 import msgpack
 import pytz
-import pandas as pd
-import numpy as np
+from datetime import timedelta, datetime, time
 from multiprocessing import Pool, cpu_count
+from functools import partial
+from threading import Thread
+import pandas as pd
+from pandas import HDFStore, Timestamp, DatetimeIndex
+from ADR import getORD, getADRFX, getFutures, getADRRatio, calcADRPremium
+import numpy as np
+import zmq
 import BBG
 import pdb
+
+
+class intradayTickMemory():
+    memdict = {}
 
 
 def getNonSettlementDates(ticker, start, stop):
@@ -58,6 +66,38 @@ def getTimezoneByTicker(ticker):
     return getExchangeTimesByTicker(ticker)['zone']
 
 
+def getMarketOpen(ticker, date, tzconvert=True):
+    """
+    Return Timestamp of market open for ticker on a given date
+    """
+    info = getExchangeTimesByTicker(ticker)
+    opentime = time(*info['open'])
+    ts = datetime.combine(date, opentime)
+    output = pytz.timezone(info['zone']).localize(ts)
+
+    # Convert timezone if specified
+    if tzconvert:
+        output = output.astimezone(pytz.timezone('America/New_York'))
+
+    return Timestamp(output)
+
+
+def getMarketClose(ticker, date, tzconvert=True):
+    """
+    Return Timestamp of market close for ticker
+    """
+    info = getExchangeTimesByTicker(ticker)
+    opentime = time(*info['close'])
+    ts = datetime.combine(date, opentime)
+    output = pytz.timezone(info['zone']).localize(ts)
+
+    # Convert timezone if specified
+    if tzconvert:
+        output = output.astimezone(pytz.timezone('America/New_York'))
+
+    return Timestamp(output)
+
+
 def getVWAPExcludeCodesByTicker(ticker):
     """
     Bloomberg trade codes to ignore during VWAP calculations. Ticker like "MSFT US Equity"
@@ -74,12 +114,17 @@ def getMarketCloseCodeByTicker(ticker):
     Returns: string
     """
     # Read file
-    with open('market_close_codes', 'r') as myfile:
+    with open('E:/dev/Pheonix/market_close_codes', 'r') as myfile:
         return msgpack.unpackb(myfile.read())[ticker.split(' ')[1]]
 
 
-def getTickDataPath():
-    path = 'E:/TickData/'
+def getTickDataPath(mode='prod'):
+
+    path = '//nj1ppfstd01/TickData/'
+
+    if mode == 'test':
+        path += 'Test/'
+
     return path
 
 
@@ -130,6 +175,13 @@ def getTickData(ticker, start=None, end=None, code=None):
     return output
 
 
+def getAvgDailyVol(data):
+    """
+    Get Average Daily Volume given tick data series for equity
+    """
+    return data.Size.resample('D', how=np.sum).dropna().mean()
+
+
 def getVWAP(ticker, start, end, data=None):
     """
     Returns -1 if not trades occurred during the period
@@ -141,8 +193,8 @@ def getVWAP(ticker, start, end, data=None):
 
     # If data supplied
     if data is not None:
-        trades = data[start:end]
-        # trades = data[(data.index > start) & (data.index < end)]
+        # trades = data[start:end]
+        trades = data[(data.index > start) & (data.index < end)]
     else:
         # Load trades
         trades = getTickData(ticker, start=start, end=end)
@@ -188,7 +240,7 @@ def getMarketClosePrices(ticker, index=None, data=None):
     return ticks.reindex(index, method='pad').Price
 
 
-def getPrices(ticker, index, data=None):
+def getPrices(ticker, index, data=None, VWAP_only=False):
     """
     Returns DataFrame with last prices for specified datetimes
 
@@ -197,6 +249,7 @@ def getPrices(ticker, index, data=None):
     """
     # If data supplied
     if data is not None:
+        if VWAP_only: data = data[data.VWAP_Include]
         data = data.ix[np.unique(data.index, return_index=True)[1]]
         return data.reindex(index, method='pad').Price
 
@@ -213,6 +266,7 @@ def getPrices(ticker, index, data=None):
 
     # Get unique trades by time
     ticks = ticks.ix[np.unique(ticks.index, return_index=True)[1]]
+    if VWAP_only: ticks = ticks[ticks.VWAP_Include]
     return ticks.reindex(index, method='pad').Price
 
 
@@ -245,3 +299,62 @@ def updateTickData(processMethod='multiprocess', core_multiplier=3):
         p = Pool(processes=numProcesses)
         p.map(BBG.updateHistoricalTickData, securitylist)
 
+
+def inializeTickMemorySubscriptions(universe):
+
+    memory = intradayTickMemory()
+
+    event_handler = partial(BBG_message_to_mem, memory=memory)
+    Thread(target=BBG.startRTSubscriptions, args=(universe, event_handler)).start()
+
+    context = zmq.Context()
+    sock = context.socket(zmq.REP)
+    sock.bind('tcp://*:8080')
+
+    while True:
+        ADR = sock.recv()
+        ORD = getORD(ADR)
+        FX = getADRFX(ADR)
+        Futures = getFutures(ADR)
+        Ratio = getADRRatio(ADR)
+
+        message = ''
+
+        try:
+            adr_price = memory.memdict[ADR].Price[-1]
+            message += str(adr_price)
+        except:
+            print 'NO ADR'
+
+        try:
+            ord_prices = memory.memdict[ORD]
+            ord_price = ord_prices.Price[-1]
+            message += ',' + str(ord_price)
+        except:
+            print 'NO ORD'
+            sock.send(message)
+            continue
+        close_code = getMarketCloseCodeByTicker(ORD)
+        close_prices = ord_prices[ord_prices.Codes == close_code]
+        if not close_prices.empty:
+            ord_close = close_prices.Price[-1]
+
+            message += ',' + str(ord_close)
+
+            ord_close_time = close_prices.index[-1]
+
+            fx_price = memory.memdict[FX].Price[-1]
+            adr_premium = calcADRPremium(adr_price, ord_close, fx_price, Ratio, FX)
+            message += ',' + str(adr_premium)
+
+            futures_price = memory.memdict[Futures].Price[-1]
+            futures_close_price = getMarketClosePrices(Futures, index=[ord_close_time], data=memory.memdict[Futures])
+            futures_ret = (futures_price / futures_close_price) - 1
+
+            message += ',' + str(futures_ret)
+
+            indicator = adr_premium - futures_ret
+
+            message += ',' + str(indicator)
+
+        sock.send(message)

@@ -9,7 +9,7 @@ import nltk
 from BBG import getSingleField
 
 # Database file
-DB = 'E:/Ratings/DB.h5'
+DB = '//nj1ppfstd01/TickData/Streetaccount.h5'
 
 n = 0
 
@@ -40,6 +40,9 @@ def convertTicker(ticker):
             return ticker.replace('.', '/ ')
 
         else: return ticker.replace('.', ' ')
+
+        # Replace RU with RX
+        ticker = ticker[:ticker.index('.')] + ticker[ticker.index('.'):].replace('RU', 'RX')
 
     # If 2 '.' in ticker
     if numDots == 2:

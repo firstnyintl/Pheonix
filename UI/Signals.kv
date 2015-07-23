@@ -1,0 +1,76 @@
+<Signals>:
+    id: signals
+    signal_ticker: ticker.text    
+    cols: 1
+    rows: 2
+    GridLayout:
+        cols: 2
+        rows: 1
+        size_hint_y: .1
+        Spinner:
+            id: strategy
+            values: root.getStrategyList()
+            text: 'Select Strategy'
+            on_text: root.update_universe(self.text)
+        Button:
+            text: 'Generate'    
+            on_release: root.generateSignals()
+    GridLayout:
+        rows: 2
+        cols: 1
+        Spinner:
+            size_hint_y: 0.2
+            id: ticker
+            values: []
+            text: self.values[0] if self.values else ''
+        GridLayout:    
+            rows: 6
+            cols: 1
+            GridLayout:
+                rows: 1
+                cols: 2
+                Label:
+                    text: 'ADR Price'
+                Label:
+                    id: adr_price
+                    text: ''
+            GridLayout:
+                rows: 1
+                cols: 2
+                Label:
+                    text: 'ORD Price'
+                Label:
+                    id: ord_price
+                    text: ''
+            GridLayout:
+                rows: 1
+                cols: 2
+                Label:
+                    text: 'ORD Close'
+                Label:
+                    id: ord_close
+                    text: ''
+            GridLayout:
+                rows: 1
+                cols: 2
+                Label:
+                    text: 'ADR Premium'
+                Label:
+                    id: adr_premium
+                    text: ''
+            GridLayout:
+                rows: 1
+                cols: 2
+                Label:
+                    text: 'Fut. Ret.'
+                Label:
+                    id: fut_ret
+                    text: ''
+            GridLayout:
+                rows: 1
+                cols: 2
+                Label:
+                    text: 'Indicator'
+                Label:
+                    id: indicator
+                    text: ''

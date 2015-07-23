@@ -7,11 +7,10 @@ from concurrent import futures
 from datetime import timedelta, date, time, datetime
 import pandas as pd
 import Indicator
-from Data import getVWAP, getPrices, getExchangeTimesByTicker, getTickData, getTimezoneByTicker
+from Data import getVWAP, getPrices, getExchangeTimesByTicker, getTickData, getTimezoneByTicker, getMarketClose, getMarketOpen
 from ADR import getADRFX, getORD, calcADREquiv, getUniverse, getWorstCaseTurn, getADRTable
 from Strategy import ADR_basic
-import Trade
-from Order import Order
+from Order import buildOrder
 
 
 def buildDateRange(days):
@@ -37,28 +36,44 @@ def buildSignals(strategy, date_range, data):
     Builds signals DataFrame
     """
     # Get indicator names and signal rules
-    indicator_list = strategy.indicatorNames
+    indicator_list = strategy.indicators
     signal_rules = strategy.signalRules
 
     # Get indicators
     indicators = pd.DataFrame()
     for name in indicator_list:
-        indicator = getattr(Indicator, name)
+        indicator = getattr(Indicator, name.split('(')[0])
         referenceTicker = getattr(strategy, indicator.buildingSecurity)
-        indicator = indicator(referenceTicker, start=date_range.min().date(), end=date_range.max().date(), data=data)
+        param = name.split('(')[1].split(')')[0]
+        indicator = indicator(referenceTicker, start=date_range.min().date(), end=date_range.max().date(), data=data, time_of_day=param)
         indicators[name] = indicator.build()
 
     # Create empty signals list
     signals = pd.Series(index=indicators.index)
+    indicator_columns = [x.replace('(', '_').replace(')','').replace(':', '_') for x in indicators.columns]
+    indicators.columns = indicator_columns
 
     # Loop through all conditions
-    for classification, (indicator, logic, value) in signal_rules.iterrows():
+    for classification, rules in signal_rules.iterrows():
 
-        # Create bool vector where conditions are true
-        bool_vector = indicators.eval(' '.join([indicator, logic, str(value)]))
+        rules = pd.DataFrame(rules).T
 
-        # Add signals to signals Seriesy
-        signals[bool_vector] = classification
+        bool_vectors = pd.DataFrame(index=signals.index)
+
+        for condition in rules.keys().levels[0]:
+
+            rule = rules[condition]
+
+            indicator, logic, value = tuple(rule.values.tolist()[0])
+
+            # Eval wont work unless modify string
+            indicator = indicator.replace('(', '_').replace(')','').replace(':', '_')
+
+            # Create bool vector where conditions are true
+            bool_vectors[condition] = indicators.eval(' '.join([indicator, logic, str(value)]))
+
+        # Get where all are true
+        signals[bool_vectors.all(axis=1)] = classification
 
     # Get rid of NaN values
     signals = signals.dropna()
@@ -78,121 +93,70 @@ def backtest(strategy, days=100, date_range=None, data=None):
 
         signals = pd.DataFrame(signals, columns=['Signal'])
 
-        # Get execution rules
-        execution_rules = strategy.executionRules
+        def getTrades(x, trades):
+            x = x[1]
+            actions = strategy.rules.Consequents[x.Signal].split(' & ')
+            for action in actions:
+                act = action.split(' ')
+                side = act[0]
+                if act[1] == 'ADR': typ = 'entry'
+                else: typ = 'exit'
+                security = getattr(strategy, act[1])
+                algo = act[2].split('(')[0]
+                params = act[2].split('(')[1].split(')')[0]
+                start_param = params.split(',')[0]
+                end_param = params.split(',')[1]
 
-        # Create combined dataframe
-        execution_rules = signals.join(execution_rules, on='Signal').drop('Signal', axis=1)
+                if algo == 'VWAP':
 
-        BP = 100000.
+                    # If start now, set start to signal time
+                    if start_param == 'Now':
+                        start = x.name
 
-        # FIRST SIGNAL (SERIES)
-        sig = execution_rules.ix[0]
-        timestamp = sig.name
+                    # If start is MktOpen, set to market open time
+                    if start_param == 'MktOpen':
+                        start = getMarketOpen(security, x.name.date())
 
-        for action in sig:
-            # Get security
-            security = action['Security']
+                    # If end is MktClose, set to mkclose time
+                    if end_param == 'MktClose':
+                        end = getMarketClose(security, x.name.date())
 
-            # Get last price
-            last_price = data[security].Price.asof(timestamp)
+                    # If end is +min, parse
+                    if '+' in end_param:
+                        mins = int(end_param.replace('+', ''))
+                        end = x.name + timedelta(minutes=mins)
 
-            # Get even shares
-            size = int(BP / last_price)
+                    price = getVWAP(security, start, end, data=data[security])
 
-            # Build order timestamp (send order immediately)
-            ts = timestamp
+                    trades.append([side, typ, security, start, end, price, x.name])
 
-            pdb.set_trace()
-            # Build Order
-            order = Order(security, size, action['Order_type'], ts, action['Order_algo'], action['Order_algo_params'])
+        trades = []
+        [getTrades(signal, trades) for signal in signals.iterrows()]
+        trades = pd.DataFrame(trades, columns=['Side', 'Type', 'Security', 'Start', 'End', 'Price', 'Signal'])
+        trades.index = trades.Signal
+        trades = trades.drop('Signal')
 
         # Build entry trades dataframe
-        entry_trades = pd.DataFrame(columns=['Security', 'Type', 'VWAP Start', 'VWAP End', 'Price'], index=signals.index)
-        entry_trades['Security'] = strategy.ADR
-        entry_trades['Type'].ix[signals[signals == '1'].index] = 'Buy'
-        entry_trades['Type'].ix[signals[signals == '0'].index] = 'Short'
-        entry_trades['VWAP Start'] = map(lambda x: pytz.timezone('America/New_York').localize(datetime.combine(x, entry_start_VWAP)), entry_trades.index)
-        entry_trades['VWAP End'] = map(lambda x: pytz.timezone('America/New_York').localize(datetime.combine(x, entry_end_VWAP)), entry_trades.index)
-        entry_trades['Price'] = map(lambda x, y: getVWAP(strategy.ADR, x, y, data=data[strategy.ADR]), entry_trades['VWAP Start'], entry_trades['VWAP End'])
+        entry_trades = trades[trades.Type == 'entry']
 
-        # Get VWAP times and zone
-        exchangeTimes = getExchangeTimesByTicker(strategy.ORD)
-
-        VWAP_hours_after_open = strategy.rules['Execution']['ORD_VWAP_hours_after_open']['value']
-
-        exit_start_VWAP = time(*exchangeTimes['open'])
-        exit_end_VWAP = (datetime.combine(date.today(), exit_start_VWAP) + timedelta(hours=VWAP_hours_after_open)).time()
-        exit_timezone = exchangeTimes['zone']
-
-        exit_trades = pd.DataFrame(columns=['Security', 'Type', 'VWAP Start', 'VWAP End', 'Price'], index=signals.index)
-
-        # Trade dates (Offset by +1)
-        trade_dates = entry_trades.index + pd.tseries.offsets.BDay()
-        exit_start_VWAP = map(lambda x: pytz.timezone(exit_timezone).localize(datetime.combine(x, exit_start_VWAP)).astimezone(pytz.timezone('America/New_York')), trade_dates)
-        exit_end_VWAP = map(lambda x: pytz.timezone(exit_timezone).localize(datetime.combine(x, exit_end_VWAP)).astimezone(pytz.timezone('America/New_York')), trade_dates)
-
-        # If Long signal, set side to buy, if short signal, set to short
-        exit_trades['Security'] = strategy.ORD
-        exit_trades['Type'].ix[signals[signals == 'Discount'].index] = 'Sell'
-        exit_trades['Type'].ix[signals[signals == 'Premium'].index] = 'Buy'
-        exit_trades['VWAP Start'] = exit_start_VWAP
-        exit_trades['VWAP End'] = exit_end_VWAP
-        exit_trades['Price'] = map(lambda x, y: getVWAP(strategy.ORD, x, y, data=data[strategy.ORD]), exit_trades['VWAP Start'], exit_trades['VWAP End'])
-        exit_trades['FX'] = getPrices(strategy.FX, exit_trades['VWAP End'], data=data[strategy.FX]).values
+        exit_trades = trades[trades.Type == 'exit']
+        exit_trades['FX'] = getPrices(strategy.FX, exit_trades['End'], data=data[strategy.FX]).values
         exit_trades['ADR Equiv'] = exit_trades.apply(lambda row: calcADREquiv(row['Price'], row['FX'], strategy.Ratio, strategy.FX), axis=1)
 
         # Combine in one dataframe
         result = pd.DataFrame(index=entry_trades.index)
 
         # Bring over info from other trades
-        result['Buy/Sell ADR'] = entry_trades['Type']
+        result['Buy/Sell ADR'] = entry_trades['Side']
         result['ADR Entry'] = entry_trades['Price']
         result['ADR Equiv Exit'] = exit_trades['ADR Equiv']
         result['Gross Profit'] = result['ADR Equiv Exit'] - result['ADR Entry']
         result['Gross Profit'][result['Buy/Sell ADR'] == 'Short'] * -1
-        result['Turn (worst case)'] = result.apply(lambda row: getWorstCaseTurn(ticker, row['Buy/Sell ADR'], price=row['ADR Equiv Exit']), axis=1)
-        result['Net Profit'] = result['Gross Profit'] - result['Turn (worst case)']
+        result['Turn (worst case)'] = result.apply(lambda row: getWorstCaseTurn(strategy.ADR, row['Buy/Sell ADR'], price=row['ADR Equiv Exit']), axis=1)
+        result['Net Profit (abs)'] = result['Gross Profit'] - result['Turn (worst case)']
+        result['Net Profit (bps)'] = result['Net Profit (abs)'] / result['ADR Entry'] * 10000
 
         return result
-
-    def runReport(result, start_time):
-        """
-        Compile stats and summary on results
-        """
-        # Check if empty
-        empty = False
-        if result is None: empty = True
-
-        # Get end_time
-        end_time = datetime.now()
-
-        # Drop days with zero liquidity
-        zero_liquidity_trades = 0
-        if not empty:
-            zero_liquidity_trades = result[(result['ADR Entry'] == 0) | (result['ADR Equiv Exit'] == 0)]
-            result = result.drop(zero_liquidity_trades.index)
-            zero_liquidity_trades = len(zero_liquidity_trades)
-
-        report = {
-            'Ticker': ticker,
-            'Start Date': date_range[0],
-            'End Date': date_range[-1],
-            'Long ADR Trades': 0 if empty else len(result[result['Buy/Sell ADR'] == 'Buy']),
-            'Short ADR Trades': 0 if empty else len(result[result['Buy/Sell ADR'] == 'Short']),
-            'Avg. Gross Profit': 0 if empty else result['Gross Profit'].mean(),
-            'Avg. Net Profit': 0 if empty else result['Net Profit'].mean(),
-            'Max Net Profit': 0 if empty else result['Net Profit'].max(),
-            'Min Net Profit': 0 if empty else result['Net Profit'].min(),
-            'Average Turn Cost': 0 if empty else result['Turn (worst case)'].mean(),
-            'Number of 0 liquidity trades': zero_liquidity_trades,
-            # 'Strategy': rules
-            'Speed (s)': (end_time - start_time).total_seconds(),
-            'Premium threshold %': strategy.rules['Signal']['Premium']['value'],
-            'Discount threshold %': strategy.rules['Signal']['Discount']['value'],
-            'VWAP ORD # hours after open': strategy.rules['Execution']['ORD_VWAP_hours_after_open']['value']
-        }
-        return pd.Series(report)
 
     # Time backtest
     start_time = datetime.now()
@@ -215,13 +179,10 @@ def backtest(strategy, days=100, date_range=None, data=None):
     else:
         result = None
 
-    # Calculate report
-    report = runReport(result, start_time)
+    end_time = datetime.now()
+    speed = (end_time-start_time).total_seconds()
 
-    print report
-    print '\n'
-
-    return report
+    return result, data, speed
 
 
 def buildRulesForOptimization(strategy, optimization):

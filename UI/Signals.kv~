@@ -1,0 +1,13 @@
+<Signals>:
+    cols: 1
+    rows: 2
+    Spinner:
+        id: strategy
+        values: root.getStrategyList()
+        text: self.values[0]
+    Button:
+        id: last_price
+        text: ''    
+    Button:
+        text: 'Generate'    
+        on_release: root.generateSignals()
